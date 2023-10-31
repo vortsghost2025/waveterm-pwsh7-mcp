@@ -1,38 +1,30 @@
 const webpack = require("webpack");
 const merge = require("webpack-merge");
-const common = require("./webpack.common.js");
+const common = require("./webpack.electron.js");
 const moment = require("dayjs");
+const VERSION = require("../version.js");
 const path = require("path");
-const VERSION = require("./version.js");
 
 function makeBuildStr() {
     let buildStr = moment().format("YYYYMMDD-HHmmss");
-    console.log("Prompt " + VERSION + " build " + buildStr);
+    console.log("Prompt Electron " + VERSION + " build " + buildStr);
     return buildStr;
 }
 
 const BUILD = makeBuildStr();
 
-let BundleAnalyzerPlugin = null;
-if (process.env.WEBPACK_ANALYZE) {
-    BundleAnalyzerPlugin = require("webpack-bundle-analyzer").BundleAnalyzerPlugin;
-}
-
 let merged = merge.merge(common, {
     mode: "production",
     output: {
-        path: path.resolve(__dirname, "dist"),
+        path: path.resolve(__dirname, "../dist"),
         filename: "[name].js",
     },
-    devtool: false,
+    devtool: "source-map",
     optimization: {
         minimize: true,
     },
 });
 
-if (BundleAnalyzerPlugin != null) {
-    merged.plugins.push(new BundleAnalyzerPlugin());
-}
 merged.plugins.push(
     new webpack.DefinePlugin({
         __PROMPT_DEV__: "false",
