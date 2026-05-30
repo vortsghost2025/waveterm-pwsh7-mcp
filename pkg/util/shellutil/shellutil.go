@@ -89,6 +89,12 @@ func DetectLocalShellPath() string {
 		if pwshPath, lpErr := exec.LookPath("pwsh"); lpErr == nil {
 			return pwshPath
 		}
+
+		pwsh7Path := `C:\Program Files\PowerShell\7\pwsh.exe`
+		if _, statErr := os.Stat(pwsh7Path); statErr == nil {
+			return pwsh7Path
+		}
+
 		if powershellPath, lpErr := exec.LookPath("powershell"); lpErr == nil {
 			return powershellPath
 		}
