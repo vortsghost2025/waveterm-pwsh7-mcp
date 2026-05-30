@@ -464,7 +464,12 @@ func getSystemSummary(ctx context.Context) string {
 		return fmt.Sprintf("%s (%s)", prettyName, runtime.GOARCH)
 	case "windows":
 		var details string
-		out, err := exec.CommandContext(ctx, "powershell", "-NoProfile", "-NonInteractive", "-Command", "(Get-CimInstance Win32_OperatingSystem).Caption").Output()
+		powershellExe := "powershell"
+		pwsh7Path := `C:\Program Files\PowerShell\7\pwsh.exe`
+		if _, statErr := os.Stat(pwsh7Path); statErr == nil {
+			powershellExe = pwsh7Path
+		}
+		out, err := exec.CommandContext(ctx, powershellExe, "-NoProfile", "-NonInteractive", "-Command", "(Get-CimInstance Win32_OperatingSystem).Caption").Output()
 		if err == nil && len(out) > 0 {
 			details = strings.TrimSpace(string(out))
 		} else {
