@@ -36,7 +36,7 @@ func defineTools() []ToolDefinition {
 			Name:        "ping",
 			Description: "Health check. Returns pong with server info.",
 			InputSchema: map[string]any{
-				"type":     "object",
+				"type":       "object",
 				"properties": map[string]any{},
 			},
 		},
@@ -44,7 +44,7 @@ func defineTools() []ToolDefinition {
 			Name:        "get_wave_env",
 			Description: "Get Wave-relevant environment variables.",
 			InputSchema: map[string]any{
-				"type":     "object",
+				"type":       "object",
 				"properties": map[string]any{},
 			},
 		},
@@ -112,6 +112,25 @@ func defineTools() []ToolDefinition {
 				"required": []string{"pattern"},
 			},
 		},
+		{
+			Name:        "read_text_file",
+			Description: "Read a text file and return its contents with line numbers. Binary files are detected and rejected. Respects max_bytes limit to avoid returning huge files.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"path": map[string]any{
+						"type":        "string",
+						"description": "Absolute path to the file to read",
+					},
+					"max_bytes": map[string]any{
+						"type":        "integer",
+						"default":     50000,
+						"description": "Maximum bytes to return (default 50000, max 200000)",
+					},
+				},
+				"required": []string{"path"},
+			},
+		},
 	}
 }
 
@@ -127,6 +146,8 @@ func handleToolCall(name string, args map[string]any) ToolCallResult {
 		return callGrep(args)
 	case "glob":
 		return callGlob(args)
+	case "read_text_file":
+		return callReadTextFile(args)
 	default:
 		return ToolCallResult{
 			IsError: true,
@@ -183,11 +204,15 @@ func callRunCommand(args map[string]any) ToolCallResult {
 	if err := checkCommand(cmdStr); err != nil {
 		return ToolCallResult{IsError: true, Content: []ToolContent{{Type: "text", Text: err.Error()}}}
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	var cmd *exec.Cmd
 	if runtime.GOOS == "windows" {
-		cmd = exec.CommandContext(ctx, "powershell", "-NoProfile", "-Command", cmdStr)
+		shell := "powershell"
+		if pwshPath, err := exec.LookPath("pwsh"); err == nil {
+			shell = pwshPath
+		}
+		cmd = exec.CommandContext(ctx, shell, "-NoProfile", "-Command", cmdStr)
 	} else {
 		cmd = exec.CommandContext(ctx, "sh", "-c", cmdStr)
 	}
@@ -520,11 +545,97 @@ func callGlob(args map[string]any) ToolCallResult {
 	}
 }
 
+func callReadTextFile(args map[string]any) ToolCallResult {
+	pathRaw, ok := args["path"]
+	if !ok {
+		return errResult("missing 'path' argument")
+	}
+	pathStr, ok := pathRaw.(string)
+	if !ok {
+		return errResult("'path' must be a string")
+	}
+	if pathStr == "" {
+		return errResult("path cannot be empty")
+	}
+
+	resolvedPath := pathStr
+	if strings.HasPrefix(resolvedPath, "~/") {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return errResult(fmt.Sprintf("cannot resolve home dir: %v", err))
+		}
+		resolvedPath = filepath.Join(home, resolvedPath[2:])
+	}
+	if !filepath.IsAbs(resolvedPath) {
+		return errResult("path must be absolute: " + pathStr)
+	}
+
+	info, err := os.Stat(resolvedPath)
+	if err != nil {
+		return errResult(fmt.Sprintf("cannot access path: %v", err))
+	}
+	if info.IsDir() {
+		return errResult("path is a directory, not a file: " + pathStr)
+	}
+
+	maxBytes := 50000
+	if mb, ok := args["max_bytes"].(float64); ok {
+		maxBytes = int(mb)
+		if maxBytes < 1000 {
+			maxBytes = 1000
+		}
+		if maxBytes > 200000 {
+			maxBytes = 200000
+		}
+	}
+
+	f, err := os.Open(resolvedPath)
+	if err != nil {
+		return errResult(fmt.Sprintf("cannot open file: %v", err))
+	}
+	defer f.Close()
+
+	var header [8192]byte
+	n, _ := f.Read(header[:])
+	if mcpIsBinary(header[:n]) {
+		return errResult("file appears to be binary, cannot read as text")
+	}
+	f.Seek(0, 0)
+
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
+
+	var out strings.Builder
+	lineNum := 0
+	totalBytes := 0
+	truncated := false
+
+	for scanner.Scan() {
+		lineNum++
+		line := scanner.Text()
+		lineText := fmt.Sprintf("%d: %s\n", lineNum, line)
+		if totalBytes+len(lineText) > maxBytes {
+			truncated = true
+			break
+		}
+		out.WriteString(lineText)
+		totalBytes += len(lineText)
+	}
+
+	fmt.Fprintf(&out, "\n(%d lines, %d bytes", lineNum, info.Size())
+	if truncated {
+		fmt.Fprintf(&out, ", truncated at %d bytes", maxBytes)
+	}
+	fmt.Fprintf(&out, ")")
+
+	return ToolCallResult{
+		Content: []ToolContent{{Type: "text", Text: out.String()}},
+	}
+}
+
 func errResult(msg string) ToolCallResult {
 	return ToolCallResult{
 		IsError: true,
 		Content: []ToolContent{{Type: "text", Text: msg}},
 	}
 }
-
-

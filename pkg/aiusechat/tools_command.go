@@ -1,17 +1,34 @@
-package main
+package aiusechat
 
 import (
+	"bytes"
+	"context"
 	"fmt"
+	"os/exec"
 	"regexp"
+	"runtime"
 	"strings"
+	"time"
+
+	"github.com/wavetermdev/waveterm/pkg/aiusechat/uctypes"
+	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 )
 
-type AllowedCommand struct {
+const (
+	RunCmdTimeout       = 30 * time.Second
+	RunCmdMaxOutputSize = 100 * 1024
+)
+
+type runCommandParams struct {
+	Command string `json:"command"`
+}
+
+type allowedCommand struct {
 	Pattern *regexp.Regexp
 	Label   string
 }
 
-var allowlist = []AllowedCommand{
+var cmdAllowlist = []allowedCommand{
 	// Navigation / identity
 	{regexp.MustCompile(`^pwd$`), "pwd"},
 	{regexp.MustCompile(`^whoami$`), "whoami"},
@@ -118,13 +135,25 @@ var allowlist = []AllowedCommand{
 	{regexp.MustCompile(`^Get-FileHash .+$`), "Get-FileHash"},
 }
 
-var blockedPatterns = []*regexp.Regexp{
+var cmdBlockedPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)(rm|del|erase|remove|rmdir|rd).*(/s|/f|/r|-r|-rf|-f|--recursive|--force)`),
 	regexp.MustCompile(`(?i)(shutdown|restart-computer|stop-computer)`),
 	regexp.MustCompile(`(?i)format.*`),
 	regexp.MustCompile(`(?i)net\s+user`),
-	regexp.MustCompile(`(?i)start-process.*-windowstyle\s+hidden`),
-	regexp.MustCompile(`(?i)start-sleep.*-seconds\s+60`),
+}
+
+func parseRunCommandInput(input any) (*runCommandParams, error) {
+	result := &runCommandParams{}
+	if input == nil {
+		return nil, fmt.Errorf("input is required")
+	}
+	if err := utilfn.ReUnmarshal(result, input); err != nil {
+		return nil, fmt.Errorf("invalid input format: %w", err)
+	}
+	if result.Command == "" {
+		return nil, fmt.Errorf("missing command parameter")
+	}
+	return result, nil
 }
 
 func checkCommand(cmd string) error {
@@ -135,15 +164,104 @@ func checkCommand(cmd string) error {
 	if strings.ContainsAny(cmd, ";&|><`\n") {
 		return fmt.Errorf("command contains shell metacharacters: ; & | > < ` \\n")
 	}
-	for _, bp := range blockedPatterns {
+	for _, bp := range cmdBlockedPatterns {
 		if bp.MatchString(cmd) {
-			return fmt.Errorf("command blocked by security policy: %s", bp.String())
+			return fmt.Errorf("command blocked by security policy")
 		}
 	}
-	for _, ac := range allowlist {
+	for _, ac := range cmdAllowlist {
 		if ac.Pattern.MatchString(cmd) {
 			return nil
 		}
 	}
-	return fmt.Errorf("command not in allowlist: %q", cmd)
+	return fmt.Errorf("command not in allowlist")
+}
+
+func verifyRunCommandInput(input any, toolUseData *uctypes.UIMessageDataToolUse) error {
+	params, err := parseRunCommandInput(input)
+	if err != nil {
+		return err
+	}
+	return checkCommand(params.Command)
+}
+
+func runCommandCallback(input any, toolUseData *uctypes.UIMessageDataToolUse) (any, error) {
+	params, err := parseRunCommandInput(input)
+	if err != nil {
+		return nil, err
+	}
+	if err := checkCommand(params.Command); err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), RunCmdTimeout)
+	defer cancel()
+	var cmd *exec.Cmd
+	if runtime.GOOS == "windows" {
+		shell := "powershell"
+		if pwshPath, err := exec.LookPath("pwsh"); err == nil {
+			shell = pwshPath
+		}
+		cmd = exec.CommandContext(ctx, shell, "-NoProfile", "-Command", params.Command)
+	} else {
+		cmd = exec.CommandContext(ctx, "sh", "-c", params.Command)
+	}
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err = cmd.Run()
+	result := stdout.String()
+	if stderr.Len() > 0 {
+		if result != "" {
+			result += "\n"
+		}
+		result += stderr.String()
+	}
+	if err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			return nil, fmt.Errorf("command timed out after %v", RunCmdTimeout)
+		}
+		if result != "" {
+			result += "\n"
+		}
+		result += fmt.Sprintf("error: %v", err)
+	}
+	if len(result) > RunCmdMaxOutputSize {
+		result = result[:RunCmdMaxOutputSize] + "\n... (truncated)"
+	}
+	return map[string]any{
+		"result": result,
+	}, nil
+}
+
+func GetRunCommandToolDefinition() uctypes.ToolDefinition {
+	return uctypes.ToolDefinition{
+		Name:        "run_command",
+		DisplayName: "Run Command",
+		Description: "Run a shell command with read-only access. Only allowlisted commands are permitted. Destructive operations are blocked. Requires user approval before execution.",
+		ToolLogName: "gen:runcommand",
+		Strict:      true,
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"command": map[string]any{
+					"type":        "string",
+					"description": "The command to run. Must be on the allowlist (e.g., pwd, whoami, ls, echo, git status, cat/type, Get-Content). Destructive patterns (rm -rf, del, shutdown, format) are blocked. Shell metacharacters (;&|><`) are rejected.",
+				},
+			},
+			"required":             []string{"command"},
+			"additionalProperties": false,
+		},
+		ToolCallDesc: func(input any, output any, toolUseData *uctypes.UIMessageDataToolUse) string {
+			params, err := parseRunCommandInput(input)
+			if err != nil {
+				return fmt.Sprintf("error parsing input: %v", err)
+			}
+			return fmt.Sprintf("running %q", params.Command)
+		},
+		ToolAnyCallback: runCommandCallback,
+		ToolApproval: func(input any) string {
+			return uctypes.ApprovalNeedsApproval
+		},
+		ToolVerifyInput: verifyRunCommandInput,
+	}
 }
