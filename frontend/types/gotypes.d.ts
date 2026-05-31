@@ -1169,6 +1169,7 @@ declare global {
         "waveai:model"?: string;
         "waveai:chatid"?: string;
         "waveai:widgetcontext"?: boolean;
+        "waveai:autoapprove"?: boolean;
         "term:*"?: boolean;
         "term:fontsize"?: number;
         "term:fontfamily"?: string;
@@ -1589,6 +1590,7 @@ declare global {
         "debug:panictype"?: string;
         "block:view"?: string;
         "block:controller"?: string;
+        "block:subblock"?: boolean;
         "ai:backendtype"?: string;
         "ai:local"?: boolean;
         "wsh:cmd"?: string;

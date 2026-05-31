@@ -77,6 +77,7 @@ export class WaveAIModel {
     isAIStreaming = jotai.atom(false);
 
     widgetAccessAtom!: jotai.Atom<boolean>;
+    autoApproveAtom!: jotai.Atom<boolean>;
     droppedFiles: jotai.PrimitiveAtom<DroppedFile[]> = jotai.atom([]);
     chatId!: jotai.PrimitiveAtom<string>;
     currentAIMode!: jotai.PrimitiveAtom<string>;
@@ -119,6 +120,15 @@ export class WaveAIModel {
             const widgetAccessMetaAtom = getOrefMetaKeyAtom(this.orefContext, "waveai:widgetcontext");
             const value = get(widgetAccessMetaAtom);
             return value ?? true;
+        });
+
+        this.autoApproveAtom = jotai.atom((get) => {
+            if (this.inBuilder) {
+                return false;
+            }
+            const autoApproveMetaAtom = getOrefMetaKeyAtom(this.orefContext, "waveai:autoapprove");
+            const value = get(autoApproveMetaAtom);
+            return value ?? false;
         });
 
         this.codeBlockMaxWidth = jotai.atom((get) => {
@@ -415,6 +425,13 @@ export class WaveAIModel {
         RpcApi.SetMetaCommand(TabRpcClient, {
             oref: this.orefContext,
             meta: { "waveai:widgetcontext": enabled },
+        });
+    }
+
+    setAutoApprove(enabled: boolean) {
+        RpcApi.SetMetaCommand(TabRpcClient, {
+            oref: this.orefContext,
+            meta: { "waveai:autoapprove": enabled },
         });
     }
 

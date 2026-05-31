@@ -111,6 +111,7 @@ type MetaTSType struct {
 	WaveAiModel         string `json:"waveai:model,omitempty"`
 	WaveAiChatId        string `json:"waveai:chatid,omitempty"`
 	WaveAiWidgetContext *bool  `json:"waveai:widgetcontext,omitempty"` // default is true
+	WaveAiAutoApprove *bool `json:"waveai:autoapprove,omitempty"`
 
 	TermClear               bool     `json:"term:*,omitempty"`
 	TermFontSize            int      `json:"term:fontsize,omitempty"`

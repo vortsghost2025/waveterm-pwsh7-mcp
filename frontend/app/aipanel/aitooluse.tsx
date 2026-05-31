@@ -2,11 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { BlockModel } from "@/app/block/block-model";
-import { Modal } from "@/app/modals/modal";
 import { recordTEvent } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { WaveUIMessagePart } from "./aitypes";
 import { RestoreBackupModal } from "./restorebackupmodal";
 import { WaveAIModel } from "./waveai-model";
@@ -187,9 +186,10 @@ AIToolUseBatch.displayName = "AIToolUseBatch";
 interface AIToolUseProps {
     part: WaveUIMessagePart & { type: "data-tooluse" };
     isStreaming: boolean;
+    groupApproved?: boolean;
 }
 
-const AIToolUse = memo(({ part, isStreaming }: AIToolUseProps) => {
+const AIToolUse = memo(({ part, isStreaming, groupApproved }: AIToolUseProps) => {
     const toolData = part.data;
     const [userApprovalOverride, setUserApprovalOverride] = useState<string | null>(null);
     const model = WaveAIModel.getInstance();
@@ -214,6 +214,12 @@ const AIToolUse = memo(({ part, isStreaming }: AIToolUseProps) => {
             }
         };
     }, []);
+
+    useEffect(() => {
+        if (groupApproved && baseApproval === "needs-approval") {
+            setUserApprovalOverride("user-approved");
+        }
+    }, [groupApproved, baseApproval]);
 
     const handleApprove = () => {
         setUserApprovalOverride("user-approved");
@@ -352,6 +358,9 @@ type ToolGroupItem =
     | { type: "progress"; part: WaveUIMessagePart & { type: "data-toolprogress" } };
 
 export const AIToolUseGroup = memo(({ parts, isStreaming }: AIToolUseGroupProps) => {
+    const model = WaveAIModel.getInstance();
+    const autoApprove = useAtomValue(model.autoApproveAtom);
+
     const tooluseParts = parts.filter((p) => p.type === "data-tooluse") as Array<
         WaveUIMessagePart & { type: "data-tooluse" }
     >;
@@ -388,6 +397,8 @@ export const AIToolUseGroup = memo(({ parts, isStreaming }: AIToolUseGroupProps)
     let addedApprovalBatch = false;
     let addedOtherBatch = false;
 
+    const pendingSingleItems: Array<WaveUIMessagePart & { type: "data-tooluse" }> = [];
+
     for (const part of tooluseParts) {
         const isFileOpPart = isFileOp(part);
         const partNeedsApproval = needsApproval(part);
@@ -404,12 +415,44 @@ export const AIToolUseGroup = memo(({ parts, isStreaming }: AIToolUseGroupProps)
             }
         } else {
             groupedItems.push({ type: "single", part });
+            if (partNeedsApproval) {
+                pendingSingleItems.push(part);
+            }
         }
     }
 
     filteredProgressParts.forEach((part) => {
         groupedItems.push({ type: "progress", part });
     });
+
+    const allPendingItems = [...readFileNeedsApproval, ...pendingSingleItems];
+    const hasPendingApprovals = allPendingItems.length > 0;
+
+    const [groupApproved, setGroupApproved] = useState(false);
+
+    useEffect(() => {
+        if (!autoApprove || !hasPendingApprovals || groupApproved) return;
+        setGroupApproved(true);
+        allPendingItems.forEach((part) => {
+            WaveAIModel.getInstance().toolUseSendApproval(part.data.toolcallid, "user-approved");
+        });
+    }, [autoApprove, hasPendingApprovals]);
+
+    const handleApproveAll = useCallback(() => {
+        setGroupApproved(true);
+        allPendingItems.forEach((part) => {
+            WaveAIModel.getInstance().toolUseSendApproval(part.data.toolcallid, "user-approved");
+        });
+    }, [allPendingItems]);
+
+    const handleDenyAll = useCallback(() => {
+        setGroupApproved(true);
+        allPendingItems.forEach((part) => {
+            WaveAIModel.getInstance().toolUseSendApproval(part.data.toolcallid, "user-denied");
+        });
+    }, [allPendingItems]);
+
+    const showApprovalBar = hasPendingApprovals && !groupApproved && !autoApprove;
 
     return (
         <>
@@ -429,11 +472,32 @@ export const AIToolUseGroup = memo(({ parts, isStreaming }: AIToolUseGroupProps)
                 } else {
                     return (
                         <div key={idx} className="mt-2">
-                            <AIToolUse part={item.part} isStreaming={isStreaming} />
+                            <AIToolUse part={item.part} isStreaming={isStreaming} groupApproved={groupApproved} />
                         </div>
                     );
                 }
             })}
+            {showApprovalBar && (
+                <div className="mt-2 p-2 rounded bg-zinc-800/60 border border-zinc-700 flex items-center justify-between sticky bottom-0">
+                    <span className="text-sm text-gray-400">
+                        {allPendingItems.length} tool{allPendingItems.length !== 1 ? "s" : ""} need approval
+                    </span>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={handleApproveAll}
+                            className="px-3 py-1 border border-gray-600 text-gray-300 hover:border-green-500 hover:text-green-400 text-sm rounded cursor-pointer transition-colors"
+                        >
+                            Approve All ({allPendingItems.length})
+                        </button>
+                        <button
+                            onClick={handleDenyAll}
+                            className="px-3 py-1 border border-gray-600 text-gray-300 hover:border-red-500 hover:text-red-400 text-sm rounded cursor-pointer transition-colors"
+                        >
+                            Deny All
+                        </button>
+                    </div>
+                </div>
+            )}
         </>
     );
 });

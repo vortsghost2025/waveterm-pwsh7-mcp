@@ -107,6 +107,7 @@ const (
 	MetaKey_WaveAiModel                      = "waveai:model"
 	MetaKey_WaveAiChatId                     = "waveai:chatid"
 	MetaKey_WaveAiWidgetContext              = "waveai:widgetcontext"
+	MetaKey_WaveAiAutoApprove                = "waveai:autoapprove"
 
 	MetaKey_TermClear                        = "term:*"
 	MetaKey_TermFontSize                     = "term:fontsize"
