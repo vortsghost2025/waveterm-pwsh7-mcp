@@ -29,12 +29,21 @@ var sshCmd = &cobra.Command{
 	PreRunE: preRunSetupRpcClient,
 }
 
+var sshListCmd = &cobra.Command{
+	Use:     "list",
+	Short:   "list all SSH connections",
+	Args:    cobra.NoArgs,
+	RunE:    sshListRun,
+	PreRunE: preRunSetupRpcClient,
+}
+
 func init() {
 	sshCmd.Flags().StringArrayVarP(&identityFiles, "identityfile", "i", []string{}, "add an identity file for publickey authentication")
 	sshCmd.Flags().StringVarP(&sshLogin, "login", "l", "", "set the remote login name")
 	sshCmd.Flags().StringVarP(&sshPort, "port", "p", "", "set the remote port")
 	sshCmd.Flags().BoolVarP(&newBlock, "new", "n", false, "create a new terminal block with this connection")
 	rootCmd.AddCommand(sshCmd)
+	sshCmd.AddCommand(sshListCmd)
 }
 
 func sshRun(cmd *cobra.Command, args []string) (rtnErr error) {
@@ -106,6 +115,24 @@ func sshRun(cmd *cobra.Command, args []string) (rtnErr error) {
 		return fmt.Errorf("setting connection in block: %w", err)
 	}
 	WriteStderr("switched connection to %q\n", sshArg)
+	return nil
+}
+
+func sshListRun(cmd *cobra.Command, args []string) (rtnErr error) {
+	defer func() {
+		sendActivity("ssh:list", rtnErr == nil)
+	}()
+	conns, err := wshclient.ConnListCommand(RpcClient, nil)
+	if err != nil {
+		return fmt.Errorf("listing connections: %w", err)
+	}
+	if len(conns) == 0 {
+		WriteStdout("no connections\n")
+		return nil
+	}
+	for _, conn := range conns {
+		WriteStdout("%s\n", conn)
+	}
 	return nil
 }
 

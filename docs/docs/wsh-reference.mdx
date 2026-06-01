@@ -409,6 +409,69 @@ wsh ssh [user@host]
 
 This will use Wave's internal ssh implementation to connect to the specified remote machine. The `-i` flag can be used to specify a path to an identity file.
 
+### list
+
+```sh
+wsh ssh list
+```
+
+List all SSH connections that have been made since Wave Terminal started, including connection status and remote host information.
+
+---
+
+## docker
+
+The `docker` command runs Docker CLI commands from within Wave Terminal. When run locally, it passes commands directly to the Docker CLI. When run inside an SSH block, it creates a terminal block on the remote connection to execute the Docker command.
+
+```sh
+wsh docker [subcommand] [args...]
+```
+
+All subcommands pass arguments through to the Docker CLI. Available subcommands:
+
+| Subcommand | Description |
+|---|---|
+| `ps` | List containers |
+| `images` | List images |
+| `logs` | Fetch container logs |
+| `exec` | Execute a command in a container |
+| `run` | Run a new container |
+| `compose` | Run docker compose commands |
+| `stop` | Stop containers |
+| `start` | Start containers |
+| `restart` | Restart containers |
+| `rm` | Remove containers |
+
+Examples:
+
+```sh
+# List running containers
+wsh docker ps
+
+# List all containers (including stopped)
+wsh docker ps -a
+
+# List images
+wsh docker images
+
+# Follow container logs
+wsh docker logs --follow mycontainer
+
+# Execute a command in a running container
+wsh docker exec -it mycontainer /bin/bash
+
+# Run docker compose
+wsh docker compose up -d
+
+# Stop a container
+wsh docker stop mycontainer
+
+# Remove a container
+wsh docker rm mycontainer
+```
+
+When connected to a remote SSH session, `wsh docker` commands are executed on the remote machine by creating a terminal block on that connection. This allows you to manage Docker on remote servers without manually creating new blocks.
+
 ---
 
 ## wsl
