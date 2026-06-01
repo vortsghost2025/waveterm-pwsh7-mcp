@@ -44,3 +44,6 @@ docsite/
 .superpowers
 docs/superpowers
 .claude
+
+# Sensitive config files with keys
+*.secret.json
