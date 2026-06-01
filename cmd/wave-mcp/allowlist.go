@@ -116,6 +116,32 @@ var allowlist = []AllowedCommand{
 	{regexp.MustCompile(`^stat .+$`), "stat"},
 	{regexp.MustCompile(`^Get-Item .+$`), "Get-Item"},
 	{regexp.MustCompile(`^Get-FileHash .+$`), "Get-FileHash"},
+
+	// Scoped federation / Wave workflows without shell metacharacters
+	{regexp.MustCompile(`^docker ps --filter "name=federation-game"$`), "docker ps federation-game"},
+	{regexp.MustCompile(`^docker logs [A-Za-z0-9_.-]+ --tail 50$`), "docker logs tail"},
+	{regexp.MustCompile(`^docker exec [A-Za-z0-9_.-]+ ls -la /[A-Za-z0-9_./-]+$`), "docker exec ls"},
+	{regexp.MustCompile(`^docker exec federation-game-frontend-1 cat /etc/nginx/conf\.d/default\.conf$`), "docker exec nginx config"},
+	{regexp.MustCompile(`^docker exec federation-game-reverse-proxy-1 cat /etc/traefik/rules/frontend\.yml$`), "docker exec traefik rules"},
+	{regexp.MustCompile(`^docker compose restart [A-Za-z0-9_.-]+$`), "docker compose restart"},
+	{regexp.MustCompile(`^docker compose up -d --force-recreate [A-Za-z0-9_.-]+$`), "docker compose force recreate"},
+	{regexp.MustCompile(`^Test-Path S:\\federation\\[A-Za-z0-9_.\\/-]+$`), "Test-Path federation"},
+	{regexp.MustCompile(`^git diff --no-index S:\\federation\\[A-Za-z0-9_.\\/-]+ S:\\federation\\[A-Za-z0-9_.\\/-]+$`), "git diff federation no-index"},
+	{regexp.MustCompile(`^ssh -i "~/.ssh/id_ed25519" root@100\.75\.95\.23 "ls -la /docker/federation-game/frontend/"$`), "ssh federation frontend ls"},
+	{regexp.MustCompile(`^ssh -i "~/.ssh/id_ed25519" root@100\.75\.95\.23 "grep -r \\\"[A-Za-z0-9_. /-]+\\\" /docker/federation-game/"$`), "ssh federation grep"},
+	{regexp.MustCompile(`^curl -I https://federation-game\.deliberatefederation\.cloud/worldguide\.html$`), "curl federation worldguide"},
+	{regexp.MustCompile(`^ssh -i "~/.ssh/id_ed25519" root@100\.75\.95\.23 "curl -I http://localhost:80/worldguide\.html"$`), "ssh curl federation worldguide"},
+}
+
+var metacharAllowlist = []AllowedCommand{
+	// Scoped federation / Wave workflows that require shell metacharacters.
+	{regexp.MustCompile(`^docker inspect [A-Za-z0-9_.-]+ \| grep -A 10 Mounts$`), "docker inspect mounts"},
+	{regexp.MustCompile(`^Get-Content S:\\federation\\[A-Za-z0-9_.\\/-]+ \| Select-String -Pattern "[A-Za-z0-9_. -]+"$`), "Get-Content Select-String federation"},
+	{regexp.MustCompile(`^Set-Location S:[\\/]federation[\\/]genesis-memory; npm install --force$`), "Set-Location genesis-memory npm install"},
+	{regexp.MustCompile(`^Set-Location S:[\\/]federation[\\/]genesis-memory; npx tsx src/index\.ts$`), "Set-Location genesis-memory npx tsx"},
+	{regexp.MustCompile(`^Set-Location S:[\\/]federation[\\/]genesis-memory; echo '\{"jsonrpc":"2\.0","method":"tools/list","id":1\}' \| npx tsx src/index\.ts$`), "Set-Location genesis-memory tools/list"},
+	{regexp.MustCompile(`^Set-Location S:[\\/]waveterm; npm run build$`), "Set-Location waveterm npm run build"},
+	{regexp.MustCompile(`^Set-Location S:[\\/]waveterm; npm start$`), "Set-Location waveterm npm start"},
 }
 
 var blockedPatterns = []*regexp.Regexp{
@@ -132,13 +158,18 @@ func checkCommand(cmd string) error {
 	if cmd == "" {
 		return fmt.Errorf("empty command")
 	}
-	if strings.ContainsAny(cmd, ";&|><`\n") {
-		return fmt.Errorf("command contains shell metacharacters: ; & | > < ` \\n")
-	}
 	for _, bp := range blockedPatterns {
 		if bp.MatchString(cmd) {
 			return fmt.Errorf("command blocked by security policy: %s", bp.String())
 		}
+	}
+	for _, ac := range metacharAllowlist {
+		if ac.Pattern.MatchString(cmd) {
+			return nil
+		}
+	}
+	if strings.ContainsAny(cmd, ";&|><`\n") {
+		return fmt.Errorf("command contains shell metacharacters: ; & | > < ` \\n")
 	}
 	for _, ac := range allowlist {
 		if ac.Pattern.MatchString(cmd) {
