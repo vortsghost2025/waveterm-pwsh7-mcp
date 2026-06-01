@@ -10,11 +10,23 @@ import path from "path";
 import { WaveDevVarName, WaveDevViteVarName } from "../frontend/util/isdev";
 import * as keyutil from "../frontend/util/keyutil";
 
-// This is a little trick to ensure that Electron puts all its runtime data into a subdirectory to avoid conflicts with our own data.
-// On macOS, it will store to ~/Library/Application \Support/waveterm/electron
-// On Linux, it will store to ~/.config/waveterm/electron
-// On Windows, it will store to %LOCALAPPDATA%/waveterm/electron
-app.setName("waveterm/electron");
+const WaveInstanceSuffixVarName = "WAVETERM_INSTANCE_SUFFIX";
+
+function sanitizeInstanceSuffix(rawValue: string): string {
+    return rawValue
+        .trim()
+        .replace(/[^A-Za-z0-9_-]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+}
+
+const waveInstanceSuffix = sanitizeInstanceSuffix(process.env[WaveInstanceSuffixVarName] ?? "");
+const electronRuntimeDirName = waveInstanceSuffix ? `waveterm/electron-${waveInstanceSuffix}` : "waveterm/electron";
+
+// Keep Electron runtime data in a subdirectory to avoid conflicts with Wave's own data,
+// and allow alternate launchers to opt into their own runtime profile.
+app.setName(electronRuntimeDirName);
+app.setPath("userData", path.join(app.getPath("appData"), electronRuntimeDirName));
+app.setPath("sessionData", path.join(app.getPath("appData"), electronRuntimeDirName, "session-data"));
 
 const isDev = !app.isPackaged;
 const isDevVite = isDev && process.env.ELECTRON_RENDERER_URL;
@@ -27,12 +39,26 @@ if (isDevVite) {
 }
 
 const waveDirNamePrefix = "waveterm";
-const waveDirNameSuffix = isDev ? "dev" : "";
+const waveDirNameSuffixParts: string[] = [];
+if (isDev) {
+    waveDirNameSuffixParts.push("dev");
+}
+if (waveInstanceSuffix) {
+    waveDirNameSuffixParts.push(waveInstanceSuffix);
+}
+const waveDirNameSuffix = waveDirNameSuffixParts.join("-");
 const waveDirName = `${waveDirNamePrefix}${waveDirNameSuffix ? `-${waveDirNameSuffix}` : ""}`;
 
 const paths = envPaths("waveterm", { suffix: waveDirNameSuffix });
 
-app.setName(isDev ? "Wave (Dev)" : "Wave");
+const displayName = isDev
+    ? waveInstanceSuffix
+        ? `Wave (Dev: ${waveInstanceSuffix})`
+        : "Wave (Dev)"
+    : waveInstanceSuffix
+      ? `Wave (${waveInstanceSuffix})`
+      : "Wave";
+app.setName(displayName);
 const unamePlatform = process.platform;
 const unameArch: string = process.arch;
 keyutil.setKeyUtilPlatform(unamePlatform);
