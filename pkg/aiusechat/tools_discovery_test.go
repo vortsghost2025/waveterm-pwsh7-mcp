@@ -166,3 +166,78 @@ func TestGetGetWidgetToolDefinition(t *testing.T) {
 		t.Error("ToolAnyCallback is nil")
 	}
 }
+
+// ---------- scan_terminals ----------
+
+func TestParseScanTerminalsInput(t *testing.T) {
+	tests := []struct {
+		name         string
+		input        any
+		wantErr      bool
+		wantViewType string
+	}{
+		{name: "nil input defaults view_type", input: nil, wantErr: false, wantViewType: "term"},
+		{name: "empty map defaults view_type", input: map[string]any{}, wantErr: false, wantViewType: "term"},
+		{name: "explicit view_type", input: map[string]any{"view_type": "web"}, wantErr: false, wantViewType: "web"},
+		{name: "with workspace_id and flags", input: map[string]any{
+			"workspace_id": "ws_abc12345",
+			"only_active":  true,
+			"only_running": true,
+		}, wantErr: false, wantViewType: "term"},
+		{name: "view_type wrong type", input: map[string]any{"view_type": 123}, wantErr: true, wantViewType: ""},
+		{name: "workspace_id wrong type", input: map[string]any{"workspace_id": true}, wantErr: true, wantViewType: ""},
+		{name: "only_active wrong type", input: map[string]any{"only_active": "yes"}, wantErr: true, wantViewType: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseScanTerminalsInput(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("parseScanTerminalsInput: err=%v wantErr=%v", err, tt.wantErr)
+			}
+			if !tt.wantErr && got.ViewType != tt.wantViewType {
+				t.Errorf("ViewType: got %q, want %q", got.ViewType, tt.wantViewType)
+			}
+		})
+	}
+}
+
+func TestGetScanTerminalsToolDefinition(t *testing.T) {
+	def := GetScanTerminalsToolDefinition()
+	if def.Name != "scan_terminals" {
+		t.Errorf("Name: got %q, want %q", def.Name, "scan_terminals")
+	}
+	if def.Description == "" {
+		t.Error("Description is empty")
+	}
+	schema := def.InputSchema
+	props, ok := schema["properties"].(map[string]any)
+	if !ok {
+		t.Fatal("InputSchema.properties is not a map")
+	}
+	for _, key := range []string{"view_type", "workspace_id", "only_active", "only_running", "include_empty"} {
+		if _, ok := props[key]; !ok {
+			t.Errorf("InputSchema.properties.%s missing", key)
+		}
+	}
+	if ap, ok := schema["additionalProperties"].(bool); !ok || ap {
+		t.Errorf("InputSchema.additionalProperties should be false, got %v", schema["additionalProperties"])
+	}
+	if def.ToolLogName == "" {
+		t.Error("ToolLogName is empty")
+	}
+	if def.ToolAnyCallback == nil {
+		t.Error("ToolAnyCallback is nil")
+	}
+	if def.ToolCallDesc == nil {
+		t.Error("ToolCallDesc is nil")
+	}
+	desc := def.ToolCallDesc(map[string]any{
+		"view_type":    "term",
+		"only_active":  true,
+		"only_running": true,
+		"workspace_id": "ws_abc",
+	}, nil, nil)
+	if desc == "" {
+		t.Error("ToolCallDesc returned empty string")
+	}
+}

@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/aiusechat/uctypes"
@@ -401,6 +402,226 @@ func GetGetWidgetToolDefinition() uctypes.ToolDefinition {
 				return nil, err
 			}
 			return executeGetWidget(parsed)
+		},
+	}
+}
+
+// ---------- scan_terminals ----------
+//
+// Cross-tab discovery: enumerate every terminal (or other view-typed) widget
+// across every tab in every open workspace. The in-app Wave AI assistant has
+// the same visibility into all terminal widgets; this tool exposes that to
+// external/MCP agents so they can pick which terminal to talk to without
+// having to walk the workspace -> tab -> block hierarchy manually.
+
+type ScanTerminalsToolInput struct {
+	ViewType     string `json:"view_type,omitempty"`     // default "term"
+	WorkspaceId  string `json:"workspace_id,omitempty"`  // optional filter
+	OnlyActive   bool   `json:"only_active,omitempty"`   // only the active tab in each workspace
+	OnlyRunning  bool   `json:"only_running,omitempty"`  // only widgets whose shell state is "running" (or integration-active)
+	IncludeEmpty bool   `json:"include_empty,omitempty"` // include tabs with zero matches (for discovery)
+}
+
+type ScannedTerminal struct {
+	TabId        string `json:"tab_id"`
+	TabName      string `json:"tab_name,omitempty"`
+	WorkspaceId  string `json:"workspace_id,omitempty"`
+	IsActiveTab  bool   `json:"is_active_tab"`
+	BlockId      string `json:"block_id"`
+	WidgetId     string `json:"widget_id"`
+	ViewType     string `json:"view_type"`
+	ShortDesc    string `json:"short_desc,omitempty"`
+	ShellType    string `json:"shell_type,omitempty"`
+	ShellState   string `json:"shell_state,omitempty"`
+	ShellVersion string `json:"shell_version,omitempty"`
+	Integration  bool   `json:"integration,omitempty"`
+	LastCmd      string `json:"last_cmd,omitempty"`
+	LastCmdExit  int    `json:"last_cmd_exit_code,omitempty"`
+	HasCurCwd    bool   `json:"has_curcwd,omitempty"`
+}
+
+type ScanTerminalsToolOutput struct {
+	Count       int               `json:"count"`
+	ViewType    string            `json:"view_type"`
+	ScannedTabs int               `json:"scanned_tabs"`
+	ScannedWs   int               `json:"scanned_workspaces"`
+	Terminals   []ScannedTerminal `json:"terminals"`
+}
+
+func parseScanTerminalsInput(input any) (*ScanTerminalsToolInput, error) {
+	result := &ScanTerminalsToolInput{}
+	if input == nil {
+		result.ViewType = "term"
+		return result, nil
+	}
+	inputBytes, err := json.Marshal(input)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal input: %w", err)
+	}
+	if err := json.Unmarshal(inputBytes, result); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal input: %w", err)
+	}
+	if result.ViewType == "" {
+		result.ViewType = "term"
+	}
+	return result, nil
+}
+
+func executeScanTerminals(params *ScanTerminalsToolInput) (*ScanTerminalsToolOutput, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	viewType := params.ViewType
+
+	// Build a lookup of which tab is active in which workspace. O(ws).
+	workspaces, err := wstore.DBGetAllObjsByType[*waveobj.Workspace](ctx, waveobj.OType_Workspace)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list workspaces: %w", err)
+	}
+	activeTabInWs := make(map[string]string) // workspaceId -> activeTabId
+	wsByTab := make(map[string]string)       // tabId -> workspaceId
+	wsFilter := params.WorkspaceId
+	for _, ws := range workspaces {
+		if ws == nil {
+			continue
+		}
+		if wsFilter != "" && ws.OID != wsFilter {
+			continue
+		}
+		activeTabInWs[ws.OID] = ws.ActiveTabId
+		for _, tid := range ws.TabIds {
+			wsByTab[tid] = ws.OID
+		}
+	}
+
+	tabs, err := wstore.DBGetAllObjsByType[*waveobj.Tab](ctx, waveobj.OType_Tab)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list tabs: %w", err)
+	}
+
+	out := &ScanTerminalsToolOutput{
+		ViewType:  viewType,
+		Terminals: []ScannedTerminal{},
+	}
+
+	for _, tab := range tabs {
+		if tab == nil {
+			continue
+		}
+		wsId := wsByTab[tab.OID]
+		if wsFilter != "" && wsId != wsFilter {
+			continue
+		}
+		isActive := activeTabInWs[wsId] == tab.OID
+		if params.OnlyActive && !isActive {
+			continue
+		}
+		out.ScannedTabs++
+
+		for _, blockId := range tab.BlockIds {
+			block, err := wstore.DBGet[*waveobj.Block](ctx, blockId)
+			if err != nil || block == nil || block.Meta == nil {
+				continue
+			}
+			vt, ok := block.Meta["view"].(string)
+			if !ok || vt != viewType {
+				continue
+			}
+			scan := ScannedTerminal{
+				TabId:       tab.OID,
+				TabName:     tab.Name,
+				WorkspaceId: wsId,
+				IsActiveTab: isActive,
+				BlockId:     block.OID,
+				WidgetId:    block.OID[:min(8, len(block.OID))],
+				ViewType:    vt,
+				ShortDesc:   MakeBlockShortDesc(block),
+			}
+			oref := waveobj.MakeORef(waveobj.OType_Block, block.OID)
+			if rtInfo := wstore.GetRTInfo(oref); rtInfo != nil {
+				scan.ShellType = rtInfo.ShellType
+				scan.ShellState = rtInfo.ShellState
+				scan.ShellVersion = rtInfo.ShellVersion
+				scan.Integration = rtInfo.ShellIntegration
+				scan.LastCmd = rtInfo.ShellLastCmd
+				scan.LastCmdExit = rtInfo.ShellLastCmdExitCode
+				scan.HasCurCwd = rtInfo.ShellHasCurCwd
+			}
+			if params.OnlyRunning {
+				// "running" = shell state is "running" OR shell integration is active.
+				if scan.ShellState != "running" && !scan.Integration {
+					continue
+				}
+			}
+			out.Terminals = append(out.Terminals, scan)
+		}
+		if params.IncludeEmpty && len(out.Terminals) == 0 {
+			// Not a no-op; we want the caller to see this tab existed but had no matches.
+		}
+	}
+	out.Count = len(out.Terminals)
+	out.ScannedWs = len(workspaces)
+	if wsFilter != "" {
+		out.ScannedWs = 1
+	}
+	return out, nil
+}
+
+func GetScanTerminalsToolDefinition() uctypes.ToolDefinition {
+	return uctypes.ToolDefinition{
+		Name:        "scan_terminals",
+		DisplayName: "Scan Terminal Widgets",
+		Description: "Cross-tab discovery: enumerate every terminal widget (or any view-typed widget) across every tab in every open Wave workspace. Mirrors the in-app AI assistant's ability to see all terminals. Returns tab/workspace context plus shell runtime info (shell type, state, last command, exit code, integration status). Use this to pick a terminal to inspect or interact with, then call term_get_scrollback or term_run_command on the chosen widget_id.",
+		ToolLogName: "discover:scterminals",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"view_type": map[string]any{
+					"type":        "string",
+					"description": "Widget view type to scan for. Defaults to 'term'. Other useful values: 'web', 'preview', 'waveai', 'codeeditor'.",
+				},
+				"workspace_id": map[string]any{
+					"type":        "string",
+					"description": "Optional. Only scan tabs in this workspace (full OID or 8-char prefix).",
+				},
+				"only_active": map[string]any{
+					"type":        "boolean",
+					"description": "Optional. If true, only return terminals from the active tab of each workspace.",
+				},
+				"only_running": map[string]any{
+					"type":        "boolean",
+					"description": "Optional. If true, only return terminals whose shell state is 'running' or that have shell integration active.",
+				},
+				"include_empty": map[string]any{
+					"type":        "boolean",
+					"description": "Optional. If true, scan all tabs even if they have no matching widgets (useful for discovery).",
+				},
+			},
+			"additionalProperties": false,
+		},
+		ToolCallDesc: func(input any, output any, toolUseData *uctypes.UIMessageDataToolUse) string {
+			parsed, err := parseScanTerminalsInput(input)
+			if err != nil {
+				return fmt.Sprintf("error parsing input: %v", err)
+			}
+			parts := []string{fmt.Sprintf("view_type=%q", parsed.ViewType)}
+			if parsed.WorkspaceId != "" {
+				parts = append(parts, fmt.Sprintf("workspace=%q", parsed.WorkspaceId))
+			}
+			if parsed.OnlyActive {
+				parts = append(parts, "active-tab-only")
+			}
+			if parsed.OnlyRunning {
+				parts = append(parts, "running-only")
+			}
+			return fmt.Sprintf("scanning terminals (%s)", strings.Join(parts, ", "))
+		},
+		ToolAnyCallback: func(input any, toolUseData *uctypes.UIMessageDataToolUse) (any, error) {
+			parsed, err := parseScanTerminalsInput(input)
+			if err != nil {
+				return nil, err
+			}
+			return executeScanTerminals(parsed)
 		},
 	}
 }
