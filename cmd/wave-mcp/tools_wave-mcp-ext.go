@@ -5,9 +5,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"os/exec"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -676,91 +676,5 @@ func callRunInteractiveCommand(args map[string]any) ToolCallResult {
 		"command":   cmdStr,
 	}
 	b, _ := json.Marshal(result)
-	return ToolCallResult{Content: []ToolContent{{Type: "text", Text: string(b)}}}
-}
-
-// callListAgentTerminals discovers Wave terminal and web widgets by reading
-// the Wave data directory (bolt DB) and querying wsh for tab info.
-// Falls back to shelling out to `wsh blocks` if available.
-func callListAgentTerminals(args map[string]any) ToolCallResult {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	// Strategy 1: Try `wsh blocks` command (already on allowlist)
-	wshPath, err := exec.LookPath("wsh")
-	if err != nil {
-		// No wsh available — return env info instead
-		out := map[string]any{
-			"error": "wsh not found in PATH — cannot query Wave session",
-			"hint":  "Ensure Wave Terminal is running and wsh is on PATH",
-		}
-		b, _ := json.Marshal(out)
-		return ToolCallResult{Content: []ToolContent{{Type: "text", Text: string(b)}}}
-	}
-
-	var cmd *exec.Cmd
-	if runtime.GOOS == "windows" {
-		cmd = exec.CommandContext(ctx, wshPath, "blocks")
-	} else {
-		cmd = exec.CommandContext(ctx, wshPath, "blocks")
-	}
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	err = cmd.Run()
-	if err != nil {
-		out := map[string]any{
-			"error":  fmt.Sprintf("wsh blocks failed: %v", err),
-			"stderr": stderr.String(),
-		}
-		b, _ := json.Marshal(out)
-		return ToolCallResult{Content: []ToolContent{{Type: "text", Text: string(b)}}}
-	}
-
-	// Parse the wsh blocks output to extract widget info
-	blocksRaw := strings.TrimSpace(stdout.String())
-	var blocks []map[string]any
-	for _, line := range strings.Split(blocksRaw, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		// wsh blocks output format: blockId [meta fields...]
-		// Try to extract the block ID (first field)
-		fields := strings.Fields(line)
-		if len(fields) == 0 {
-			continue
-		}
-		blockId := fields[0]
-		if len(blockId) < 8 {
-			continue
-		}
-		widgetId := blockId[:8]
-		block := map[string]any{
-			"widget_id": widgetId,
-			"block_id":  blockId,
-			"raw_line":  line,
-		}
-		// Try to detect widget type from the line content
-		lineLower := strings.ToLower(line)
-		if strings.Contains(lineLower, "term") {
-			block["type"] = "term"
-		} else if strings.Contains(lineLower, "web") {
-			block["type"] = "web"
-		} else if strings.Contains(lineLower, "preview") {
-			block["type"] = "preview"
-		} else if strings.Contains(lineLower, "waveai") {
-			block["type"] = "waveai"
-		} else {
-			block["type"] = "unknown"
-		}
-		blocks = append(blocks, block)
-	}
-
-	out := map[string]any{
-		"widgets":     blocks,
-		"widget_count": len(blocks),
-	}
-	b, _ := json.Marshal(out)
 	return ToolCallResult{Content: []ToolContent{{Type: "text", Text: string(b)}}}
 }
