@@ -66,6 +66,13 @@ func (m *anthropicChatMessage) GetUsage() *uctypes.AIUsage {
 	}
 }
 
+func (m *anthropicChatMessage) GetContentSummary() string {
+	if m == nil {
+		return ""
+	}
+	return m.Role + ": (summary stub)"
+}
+
 type anthropicInputMessage struct {
 	Role    string                         `json:"role"`
 	Content []anthropicMessageContentBlock `json:"content"`
@@ -301,16 +308,16 @@ type partialJSON struct {
 }
 
 type streamingState struct {
-	blockMap        map[int]*blockState
-	toolCalls       []uctypes.WaveToolCall
-	stopFromDelta   string
-	msgID           string
-	model           string
-	stepStarted     bool
-	rtnMessage      *anthropicChatMessage
-	usage           *anthropicUsageType
-	chatOpts        uctypes.WaveChatOpts
-	webSearchCount  int
+	blockMap       map[int]*blockState
+	toolCalls      []uctypes.WaveToolCall
+	stopFromDelta  string
+	msgID          string
+	model          string
+	stepStarted    bool
+	rtnMessage     *anthropicChatMessage
+	usage          *anthropicUsageType
+	chatOpts       uctypes.WaveChatOpts
+	webSearchCount int
 }
 
 func (p *partialJSON) Write(s string) {

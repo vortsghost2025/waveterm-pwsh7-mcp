@@ -244,6 +244,13 @@ func (m *StoredChatMessage) GetUsage() *uctypes.AIUsage {
 	}
 }
 
+func (m *StoredChatMessage) GetContentSummary() string {
+	if m == nil {
+		return ""
+	}
+	return m.Message.Role + ": (summary stub)"
+}
+
 func (m *StoredChatMessage) Copy() *StoredChatMessage {
 	if m == nil {
 		return nil
