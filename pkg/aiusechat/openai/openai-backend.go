@@ -159,6 +159,13 @@ func (m *OpenAIChatMessage) GetUsage() *uctypes.AIUsage {
 	}
 }
 
+func (m *OpenAIChatMessage) GetContentSummary() string {
+	if m == nil {
+		return ""
+	}
+	return "(summary stub)"
+}
+
 // ---------- OpenAI SSE Event Types ----------
 
 type openaiResponseCreatedEvent struct {

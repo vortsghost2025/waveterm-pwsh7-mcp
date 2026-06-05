@@ -39,6 +39,13 @@ func (m *GeminiChatMessage) GetUsage() *uctypes.AIUsage {
 	}
 }
 
+func (m *GeminiChatMessage) GetContentSummary() string {
+	if m == nil {
+		return ""
+	}
+	return m.Role + ": (summary stub)"
+}
+
 // GeminiMessagePart represents different types of content in a message
 type GeminiMessagePart struct {
 	// Text part
@@ -80,14 +87,14 @@ func (p *GeminiMessagePart) Clean() *GeminiMessagePart {
 // GeminiInlineData represents inline binary data
 type GeminiInlineData struct {
 	MimeType    string `json:"mimeType"`
-	Data        string `json:"data"` // base64 encoded
+	Data        string `json:"data"`                  // base64 encoded
 	DisplayName string `json:"displayName,omitempty"` // for multimodal function responses
 }
 
 // GeminiFileData represents uploaded file reference
 type GeminiFileData struct {
 	MimeType    string `json:"mimeType"`
-	FileUri     string `json:"fileUri"` // gs:// URI from file upload
+	FileUri     string `json:"fileUri"`               // gs:// URI from file upload
 	DisplayName string `json:"displayName,omitempty"` // for multimodal function responses
 }
 
