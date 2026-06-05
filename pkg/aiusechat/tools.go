@@ -165,7 +165,7 @@ func GenerateTabStateAndTools(ctx context.Context, tabid string, widgetAccess bo
 		// - openai-responses API type
 		// - google-gemini API type with Gemini 3+ models
 		if chatOpts.Config.APIType == uctypes.APIType_OpenAIResponses ||
-		   (chatOpts.Config.APIType == uctypes.APIType_GoogleGemini && aiutil.GeminiSupportsImageToolResults(chatOpts.Config.Model)) {
+			(chatOpts.Config.APIType == uctypes.APIType_GoogleGemini && aiutil.GeminiSupportsImageToolResults(chatOpts.Config.Model)) {
 			tools = append(tools, GetCaptureScreenshotToolDefinition(tabid))
 		}
 		tools = append(tools, GetReadTextFileToolDefinition())
@@ -174,9 +174,11 @@ func GenerateTabStateAndTools(ctx context.Context, tabid string, widgetAccess bo
 		tools = append(tools, GetEditTextFileToolDefinition())
 		tools = append(tools, GetDeleteTextFileToolDefinition())
 		tools = append(tools, GetRunCommandToolDefinition())
+		tools = append(tools, GetRunInteractiveCommandToolDefinition())
 		tools = append(tools, GetGrepToolDefinition())
 		tools = append(tools, GetGlobToolDefinition())
 		tools = append(tools, GetCodebaseSearchToolDefinition())
+		tools = append(tools, GetTermListWidgetsToolDefinition(tabid))
 		viewTypes := make(map[string]bool)
 		for _, block := range blocks {
 			if block.Meta == nil {

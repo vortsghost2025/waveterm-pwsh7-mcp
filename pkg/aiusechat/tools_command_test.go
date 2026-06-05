@@ -21,13 +21,29 @@ func TestCheckCommandScopedAllowlist(t *testing.T) {
 			command: `ssh -i "~/.ssh/id_ed25519" root@100.75.95.23 "ls -la /docker/federation-game/frontend/"`,
 		},
 		{
+			name:    "allows generic docker ps",
+			command: `docker ps`,
+		},
+		{
+			name:    "allows generic docker inspect",
+			command: `docker inspect my-container`,
+		},
+		{
+			name:    "allows ssh docker ps on arbitrary host",
+			command: `ssh root@1.2.3.4 "docker ps"`,
+		},
+		{
+			name:    "allows ssh alias with service status",
+			command: `ssh my-vps "systemctl status nginx"`,
+		},
+		{
 			name:    "rejects unallowlisted metacharacters",
 			command: `echo hello && whoami`,
 			wantErr: true,
 		},
 		{
-			name:    "rejects ssh to different host",
-			command: `ssh -i "~/.ssh/id_ed25519" root@1.2.3.4 "ls -la /docker/federation-game/frontend/"`,
+			name:    "rejects destructive remote docker command",
+			command: `ssh root@1.2.3.4 "docker rm my-container"`,
 			wantErr: true,
 		},
 		{
