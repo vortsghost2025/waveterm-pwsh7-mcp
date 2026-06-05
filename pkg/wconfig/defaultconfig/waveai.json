@@ -39,5 +39,17 @@
         "ai:capabilities": ["tools", "images", "pdfs"],
         "waveai:premium": true,
         "ai:switchcompat": ["wavecloud"]
+    },
+    "waveai@nemotron-3-ultra": {
+        "display:name": "Nemotron 3 Ultra",
+        "display:order": 1,
+        "display:icon": "zap",
+        "display:description": "NVIDIA's largest MoE reasoning model\n(nemotron-3-ultra-550b-a55b via NIM, BYOK)",
+        "ai:provider": "openai",
+        "ai:apitype": "openai-chat",
+        "ai:model": "nemotron-3-ultra-550b-a55b",
+        "ai:endpoint": "https://integrate.api.nvidia.com/v1/chat/completions",
+        "ai:apitokensecretname": "NVIDIA_API_KEY",
+        "ai:capabilities": ["tools"]
     }
 }
