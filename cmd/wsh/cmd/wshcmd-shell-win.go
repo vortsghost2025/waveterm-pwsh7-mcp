@@ -7,6 +7,7 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
+	"github.com/wavetermdev/waveterm/pkg/util/shellutil"
 )
 
 func init() {
@@ -14,14 +15,14 @@ func init() {
 }
 
 var shellCmd = &cobra.Command{
-	Use:    "shell",
+	Use:   "shell",
 	Hidden: true,
-	Short:  "Print the login shell of this user",
+	Short: "Print the login shell of this user",
 	Run: func(cmd *cobra.Command, args []string) {
-		shellCmdInner()
+		WriteStdout("%s", shellCmdInner())
 	},
 }
 
-func shellCmdInner() {
-	WriteStderr("not implemented/n")
+func shellCmdInner() string {
+	return shellutil.DetectLocalShellPath() + "\n"
 }
