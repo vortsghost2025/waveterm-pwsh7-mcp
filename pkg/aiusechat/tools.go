@@ -182,6 +182,7 @@ func GenerateTabStateAndTools(ctx context.Context, tabid string, widgetAccess bo
 		tools = append(tools, GetListWorkspacesToolDefinition())
 		tools = append(tools, GetListTabsToolDefinition())
 		tools = append(tools, GetGetWidgetToolDefinition())
+		tools = append(tools, GetScanTerminalsToolDefinition())
 		viewTypes := make(map[string]bool)
 		for _, block := range blocks {
 			if block.Meta == nil {
