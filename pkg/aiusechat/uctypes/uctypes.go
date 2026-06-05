@@ -4,6 +4,7 @@
 package uctypes
 
 import (
+	"crypto/rand"
 	"fmt"
 	"net/url"
 	"slices"
@@ -334,6 +335,13 @@ type GenAIMessage interface {
 	GetMessageId() string
 	GetUsage() *AIUsage
 	GetRole() string
+	// GetContentSummary returns a short human-readable summary of the message
+	// content for context compaction (e.g. first 120 chars of text).
+	// Implementations should return a one-line description like:
+	//   "user: What files are in ~/src?"
+	//   "assistant: Listed 15 files..."
+	//   "tool[read_dir]: {\"path\": \"/home/user/src\"..."
+	GetContentSummary() string
 }
 
 const (
@@ -374,6 +382,18 @@ type AIToolResult struct {
 
 func (m *AIMessage) GetMessageId() string {
 	return m.MessageId
+}
+
+func (m *AIMessage) GetContentSummary() string {
+	var sb strings.Builder
+	sb.WriteString("user: ")
+	for _, part := range m.Parts {
+		if part.Type == AIMessagePartTypeText && part.Text != "" {
+			sb.WriteString(part.Text)
+			break // first text part is enough for summary
+		}
+	}
+	return sb.String()
 }
 
 func (m *AIMessage) Validate() error {
@@ -629,4 +649,29 @@ func AreModelsCompatible(apiType, model1, model2 string) bool {
 	}
 
 	return false
+}
+
+// CompactionSummaryMessage is a synthetic GenAIMessage inserted by the
+// chatstore compaction logic. It carries a human-readable summary of the
+// earlier conversation that was dropped to stay within the context window.
+// It is rendered as a "user" role message so the model treats it as context.
+type CompactionSummaryMessage struct {
+	Text string `json:"text"`
+	id   string // lazily-generated unique id
+}
+
+func (m *CompactionSummaryMessage) GetMessageId() string {
+	if m.id == "" {
+		// Generate a short random id to satisfy the interface
+		b := make([]byte, 8)
+		rand.Read(b)
+		m.id = fmt.Sprintf("compaction-%x", b)
+	}
+	return m.id
+}
+
+func (m *CompactionSummaryMessage) GetRole() string    { return "user" }
+func (m *CompactionSummaryMessage) GetUsage() *AIUsage { return nil }
+func (m *CompactionSummaryMessage) GetContentSummary() string {
+	return fmt.Sprintf("user: %s", m.Text)
 }

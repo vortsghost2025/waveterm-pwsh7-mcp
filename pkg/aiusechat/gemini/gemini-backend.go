@@ -211,6 +211,15 @@ func RunGeminiChatStep(
 	// Convert GenAIMessages to Gemini contents
 	var contents []GeminiContent
 	for _, genMsg := range chat.NativeMessages {
+		// Handle compaction summary messages
+		if csm, ok := genMsg.(*uctypes.CompactionSummaryMessage); ok {
+			contents = append(contents, GeminiContent{
+				Role: "user",
+				Parts: []GeminiMessagePart{{Text: csm.Text}},
+			})
+			continue
+		}
+
 		chatMsg, ok := genMsg.(*GeminiChatMessage)
 		if !ok {
 			return nil, nil, nil, fmt.Errorf("expected GeminiChatMessage, got %T", genMsg)

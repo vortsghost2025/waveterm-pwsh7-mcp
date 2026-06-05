@@ -163,7 +163,22 @@ func (m *OpenAIChatMessage) GetContentSummary() string {
 	if m == nil {
 		return ""
 	}
-	return "(summary stub)"
+	if m.FunctionCall != nil {
+		return fmt.Sprintf("assistant: function_call[%s]", m.FunctionCall.Name)
+	}
+	if m.FunctionCallOutput != nil {
+		return fmt.Sprintf("function_call_output[%s]", m.FunctionCallOutput.CallId)
+	}
+	if m.Message != nil {
+		role := m.Message.Role
+		for _, c := range m.Message.Content {
+			if c.Type == "output_text" && c.Text != "" {
+				return fmt.Sprintf("%s: %s", role, c.Text)
+			}
+		}
+		return fmt.Sprintf("%s: (%d content blocks)", role, len(m.Message.Content))
+	}
+	return "(empty message)"
 }
 
 // ---------- OpenAI SSE Event Types ----------
@@ -511,6 +526,18 @@ func RunOpenAIChatStep(
 	// Convert GenAIMessages to input objects (OpenAIMessage or OpenAIFunctionCallInput)
 	var inputs []any
 	for _, genMsg := range chat.NativeMessages {
+		// Handle compaction summary messages
+		if csm, ok := genMsg.(*uctypes.CompactionSummaryMessage); ok {
+			inputs = append(inputs, OpenAIMessage{
+				Role: "user",
+				Content: []OpenAIMessageContent{{
+					Type: "input_text",
+					Text: csm.Text,
+				}},
+			})
+			continue
+		}
+
 		// Cast to OpenAIChatMessage
 		chatMsg, ok := genMsg.(*OpenAIChatMessage)
 		if !ok {

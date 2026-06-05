@@ -4,6 +4,8 @@
 package gemini
 
 import (
+	"fmt"
+
 	"github.com/wavetermdev/waveterm/pkg/aiusechat/uctypes"
 )
 
@@ -43,7 +45,19 @@ func (m *GeminiChatMessage) GetContentSummary() string {
 	if m == nil {
 		return ""
 	}
-	return m.Role + ": (summary stub)"
+	role := m.Role
+	for _, part := range m.Parts {
+		if part.Text != "" {
+			return fmt.Sprintf("%s: %s", role, part.Text)
+		}
+		if part.FunctionCall != nil && part.FunctionCall.Name != "" {
+			return fmt.Sprintf("%s: function_call[%s]", role, part.FunctionCall.Name)
+		}
+		if part.FunctionResponse != nil && part.FunctionResponse.Name != "" {
+			return fmt.Sprintf("%s: function_response[%s]", role, part.FunctionResponse.Name)
+		}
+	}
+	return fmt.Sprintf("%s: (%d parts)", role, len(m.Parts))
 }
 
 // GeminiMessagePart represents different types of content in a message
