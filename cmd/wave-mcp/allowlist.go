@@ -11,6 +11,8 @@ type AllowedCommand struct {
 	Label   string
 }
 
+var sshCommandPattern = regexp.MustCompile(`^ssh(?: -i "[^"\r\n]+")?(?: -p [0-9]+)? [A-Za-z0-9_.@:-]+ "([^"\r\n]+)"$`)
+
 var allowlist = []AllowedCommand{
 	// Navigation / identity
 	{regexp.MustCompile(`^pwd$`), "pwd"},
@@ -117,6 +119,19 @@ var allowlist = []AllowedCommand{
 	{regexp.MustCompile(`^Get-Item .+$`), "Get-Item"},
 	{regexp.MustCompile(`^Get-FileHash .+$`), "Get-FileHash"},
 
+	// Generic read-only Docker inspection
+	{regexp.MustCompile(`^docker ps(?: -a)?(?: --filter "[A-Za-z0-9_=:.@/-]+")?$`), "docker ps"},
+	{regexp.MustCompile(`^docker images(?: .*)?$`), "docker images"},
+	{regexp.MustCompile(`^docker logs [A-Za-z0-9_.-]+ --tail [0-9]+$`), "docker logs tail"},
+	{regexp.MustCompile(`^docker inspect [A-Za-z0-9_.-]+$`), "docker inspect"},
+	{regexp.MustCompile(`^docker exec [A-Za-z0-9_.-]+ ls(?: .+)?$`), "docker exec ls"},
+	{regexp.MustCompile(`^docker exec [A-Za-z0-9_.-]+ cat /[A-Za-z0-9_./-]+$`), "docker exec cat"},
+	{regexp.MustCompile(`^docker exec [A-Za-z0-9_.-]+ env$`), "docker exec env"},
+	{regexp.MustCompile(`^docker exec [A-Za-z0-9_.-]+ printenv(?: .*)?$`), "docker exec printenv"},
+	{regexp.MustCompile(`^docker compose ps(?: .*)?$`), "docker compose ps"},
+	{regexp.MustCompile(`^docker compose logs [A-Za-z0-9_.-]+ --tail [0-9]+$`), "docker compose logs tail"},
+	{regexp.MustCompile(`^curl -I https?://[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%-]+$`), "curl head"},
+
 	// Scoped federation / Wave workflows without shell metacharacters
 	{regexp.MustCompile(`^docker ps --filter "name=federation-game"$`), "docker ps federation-game"},
 	{regexp.MustCompile(`^docker logs [A-Za-z0-9_.-]+ --tail 50$`), "docker logs tail"},
@@ -127,13 +142,13 @@ var allowlist = []AllowedCommand{
 	{regexp.MustCompile(`^docker compose up -d --force-recreate [A-Za-z0-9_.-]+$`), "docker compose force recreate"},
 	{regexp.MustCompile(`^Test-Path S:\\federation\\[A-Za-z0-9_.\\/-]+$`), "Test-Path federation"},
 	{regexp.MustCompile(`^git diff --no-index S:\\federation\\[A-Za-z0-9_.\\/-]+ S:\\federation\\[A-Za-z0-9_.\\/-]+$`), "git diff federation no-index"},
-	{regexp.MustCompile(`^ssh -i "~/.ssh/id_ed25519" root@100\.75\.95\.23 "ls -la /docker/federation-game/frontend/"$`), "ssh federation frontend ls"},
-	{regexp.MustCompile(`^ssh -i "~/.ssh/id_ed25519" root@100\.75\.95\.23 "grep -r \\\"[A-Za-z0-9_. /-]+\\\" /docker/federation-game/"$`), "ssh federation grep"},
 	{regexp.MustCompile(`^curl -I https://federation-game\.deliberatefederation\.cloud/worldguide\.html$`), "curl federation worldguide"},
-	{regexp.MustCompile(`^ssh -i "~/.ssh/id_ed25519" root@100\.75\.95\.23 "curl -I http://localhost:80/worldguide\.html"$`), "ssh curl federation worldguide"},
 }
 
 var metacharAllowlist = []AllowedCommand{
+	// Generic read-only Docker inspection with grep filtering.
+	{regexp.MustCompile(`^docker inspect [A-Za-z0-9_.-]+ \| grep -A [0-9]+ [A-Za-z0-9_.:-]+$`), "docker inspect grep"},
+
 	// Scoped federation / Wave workflows that require shell metacharacters.
 	{regexp.MustCompile(`^docker inspect [A-Za-z0-9_.-]+ \| grep -A 10 Mounts$`), "docker inspect mounts"},
 	{regexp.MustCompile(`^Get-Content S:\\federation\\[A-Za-z0-9_.\\/-]+ \| Select-String -Pattern "[A-Za-z0-9_. -]+"$`), "Get-Content Select-String federation"},
@@ -153,6 +168,73 @@ var blockedPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)start-sleep.*-seconds\s+60`),
 }
 
+var remoteAllowlist = []AllowedCommand{
+	{regexp.MustCompile(`^pwd$`), "remote pwd"},
+	{regexp.MustCompile(`^whoami$`), "remote whoami"},
+	{regexp.MustCompile(`^hostname$`), "remote hostname"},
+	{regexp.MustCompile(`^date$`), "remote date"},
+	{regexp.MustCompile(`^uname(?: .*)?$`), "remote uname"},
+	{regexp.MustCompile(`^echo .+$`), "remote echo"},
+	{regexp.MustCompile(`^ls(?: .+)?$`), "remote ls"},
+	{regexp.MustCompile(`^cat .+$`), "remote cat"},
+	{regexp.MustCompile(`^head .+$`), "remote head"},
+	{regexp.MustCompile(`^tail .+$`), "remote tail"},
+	{regexp.MustCompile(`^wc .+$`), "remote wc"},
+	{regexp.MustCompile(`^grep .+$`), "remote grep"},
+	{regexp.MustCompile(`^rg .+$`), "remote rg"},
+	{regexp.MustCompile(`^find .+$`), "remote find"},
+	{regexp.MustCompile(`^env$`), "remote env"},
+	{regexp.MustCompile(`^printenv(?: .*)?$`), "remote printenv"},
+	{regexp.MustCompile(`^ps(?: .*)?$`), "remote ps"},
+	{regexp.MustCompile(`^df(?: .*)?$`), "remote df"},
+	{regexp.MustCompile(`^du(?: .*)?$`), "remote du"},
+	{regexp.MustCompile(`^stat .+$`), "remote stat"},
+	{regexp.MustCompile(`^file .+$`), "remote file"},
+	{regexp.MustCompile(`^systemctl status [A-Za-z0-9_.@-]+$`), "remote systemctl status"},
+	{regexp.MustCompile(`^journalctl -u [A-Za-z0-9_.@-]+ -n [0-9]+$`), "remote journalctl tail"},
+	{regexp.MustCompile(`^docker ps(?: -a)?(?: --filter "[A-Za-z0-9_=:.@/-]+")?$`), "remote docker ps"},
+	{regexp.MustCompile(`^docker images(?: .*)?$`), "remote docker images"},
+	{regexp.MustCompile(`^docker logs [A-Za-z0-9_.-]+ --tail [0-9]+$`), "remote docker logs tail"},
+	{regexp.MustCompile(`^docker inspect [A-Za-z0-9_.-]+$`), "remote docker inspect"},
+	{regexp.MustCompile(`^docker exec [A-Za-z0-9_.-]+ ls(?: .+)?$`), "remote docker exec ls"},
+	{regexp.MustCompile(`^docker exec [A-Za-z0-9_.-]+ cat /[A-Za-z0-9_./-]+$`), "remote docker exec cat"},
+	{regexp.MustCompile(`^docker exec [A-Za-z0-9_.-]+ env$`), "remote docker exec env"},
+	{regexp.MustCompile(`^docker exec [A-Za-z0-9_.-]+ printenv(?: .*)?$`), "remote docker exec printenv"},
+	{regexp.MustCompile(`^docker compose ps(?: .*)?$`), "remote docker compose ps"},
+	{regexp.MustCompile(`^docker compose logs [A-Za-z0-9_.-]+ --tail [0-9]+$`), "remote docker compose logs tail"},
+	{regexp.MustCompile(`^curl -I https?://[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%-]+$`), "remote curl head"},
+}
+
+var remoteMetacharAllowlist = []AllowedCommand{
+	{regexp.MustCompile(`^docker inspect [A-Za-z0-9_.-]+ \| grep -A [0-9]+ [A-Za-z0-9_.:-]+$`), "remote docker inspect grep"},
+}
+
+func checkRemoteCommand(cmd string) error {
+	cmd = strings.TrimSpace(cmd)
+	if cmd == "" {
+		return fmt.Errorf("empty remote command")
+	}
+	for _, bp := range blockedPatterns {
+		if bp.MatchString(cmd) {
+			return fmt.Errorf("remote command blocked by security policy: %s", bp.String())
+		}
+	}
+	for _, ac := range remoteMetacharAllowlist {
+		if ac.Pattern.MatchString(cmd) {
+			return nil
+		}
+	}
+	if strings.ContainsAny(cmd, ";&><`\n") {
+		return fmt.Errorf("remote command contains shell metacharacters: ; & > < ` \\n")
+	}
+	for _, ac := range remoteAllowlist {
+		if ac.Pattern.MatchString(cmd) {
+			return nil
+		}
+	}
+	return fmt.Errorf("remote command not in allowlist: %q", cmd)
+}
+
 func checkCommand(cmd string) error {
 	cmd = strings.TrimSpace(cmd)
 	if cmd == "" {
@@ -162,6 +244,9 @@ func checkCommand(cmd string) error {
 		if bp.MatchString(cmd) {
 			return fmt.Errorf("command blocked by security policy: %s", bp.String())
 		}
+	}
+	if matches := sshCommandPattern.FindStringSubmatch(cmd); len(matches) == 2 {
+		return checkRemoteCommand(matches[1])
 	}
 	for _, ac := range metacharAllowlist {
 		if ac.Pattern.MatchString(cmd) {
