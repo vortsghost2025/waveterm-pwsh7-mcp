@@ -128,36 +128,28 @@ func defineTools() []ToolDefinition {
 						"description": "Maximum bytes to return (default 50000, max 200000)",
 					},
 				},
-		"required": []string{"path"},
+				"required": []string{"path"},
 			},
 		},
-	{
-		Name: "run_interactive_command",
+		{
+			Name:        "run_interactive_command",
 			Description: "Run a command in a Wave terminal widget and return the output. The command is executed in a sub-process and its stdout/stderr are captured. Supports a configurable timeout. Only allowlisted commands are permitted for safety.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
 					"command": map[string]any{
-						"type": "string",
+						"type":        "string",
 						"description": "The command to run (must be on the allowlist)",
 					},
 					"timeout_ms": map[string]any{
-						"type": "integer",
-						"default": 30000,
-						"maximum": 120000,
-						"minimum": 1000,
+						"type":        "integer",
+						"default":     30000,
+						"maximum":     120000,
+						"minimum":     1000,
 						"description": "Timeout in milliseconds (default 30000, max 120000)",
 					},
 				},
 				"required": []string{"command"},
-			},
-		},
-	{
-			Name: "list_agent_terminals",
-			Description: "List all terminal and web widgets in the current Wave session. Returns widget IDs, types, titles, and running status. Useful for monitoring other agents (kilo, opencode, codex) running in terminal widgets.",
-			InputSchema: map[string]any{
-				"type":       "object",
-				"properties": map[string]any{},
 			},
 		},
 		{
@@ -289,8 +281,6 @@ func handleToolCall(name string, args map[string]any) ToolCallResult {
 		return callReadTextFile(args)
 	case "run_interactive_command":
 		return callRunInteractiveCommand(args)
-	case "list_agent_terminals":
-		return callListAgentTerminals(args)
 	case "read_dir":
 		return callReadDir(args)
 	case "write_text_file":
