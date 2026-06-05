@@ -7,6 +7,7 @@ import { memo, useEffect, useRef } from "react";
 import { getFileIcon } from "./ai-utils";
 import { AIFeedbackButtons } from "./aifeedbackbuttons";
 import { AIToolUseGroup } from "./aitooluse";
+import { getToolUseSignature } from "./aitooluse-utils";
 import { WaveUIMessage, WaveUIMessagePart } from "./aitypes";
 import { WaveAIModel } from "./waveai-model";
 
@@ -233,7 +234,16 @@ export const AIMessage = memo(({ message, isStreaming }: AIMessageProps) => {
                     <>
                         {groupedParts.map((group, index: number) =>
                             group.type === "toolgroup" ? (
-                                <AIToolUseGroup key={index} parts={group.parts} isStreaming={isStreaming} />
+                                <AIToolUseGroup
+                                    key={`toolgroup:${getToolUseSignature(
+                                        group.parts.filter(
+                                            (part): part is WaveUIMessagePart & { type: "data-tooluse" } =>
+                                                part.type === "data-tooluse"
+                                        )
+                                    )}:${group.parts.length}`}
+                                    parts={group.parts}
+                                    isStreaming={isStreaming}
+                                />
                             ) : (
                                 <div key={index} className="mt-2">
                                     <AIMessagePart part={group.part} role={message.role} isStreaming={isStreaming} />

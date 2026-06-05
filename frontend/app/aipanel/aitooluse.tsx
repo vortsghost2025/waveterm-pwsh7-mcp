@@ -7,6 +7,7 @@ import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { WaveUIMessagePart } from "./aitypes";
+import { getEffectiveApprovalStatus, getPendingApprovalSignature, getToolUseSignature } from "./aitooluse-utils";
 import { RestoreBackupModal } from "./restorebackupmodal";
 import { WaveAIModel } from "./waveai-model";
 
@@ -76,10 +77,6 @@ const ToolDesc = memo(({ text, className }: ToolDescProps) => {
 
 ToolDesc.displayName = "ToolDesc";
 
-function getEffectiveApprovalStatus(baseApproval: string, isStreaming: boolean): string {
-    return !isStreaming && baseApproval === "needs-approval" ? "timeout" : baseApproval;
-}
-
 interface AIToolApprovalButtonsProps {
     count: number;
     onApprove: () => void;
@@ -145,10 +142,15 @@ interface AIToolUseBatchProps {
 
 const AIToolUseBatch = memo(({ parts, isStreaming }: AIToolUseBatchProps) => {
     const [userApprovalOverride, setUserApprovalOverride] = useState<string | null>(null);
+    const toolUseSignature = getToolUseSignature(parts);
 
     const firstTool = parts[0].data;
     const baseApproval = userApprovalOverride || firstTool.approval;
     const effectiveApproval = getEffectiveApprovalStatus(baseApproval, isStreaming);
+
+    useEffect(() => {
+        setUserApprovalOverride(null);
+    }, [toolUseSignature]);
 
     const handleApprove = () => {
         setUserApprovalOverride("user-approved");
@@ -214,6 +216,10 @@ const AIToolUse = memo(({ part, isStreaming, groupApproved }: AIToolUseProps) =>
             }
         };
     }, []);
+
+    useEffect(() => {
+        setUserApprovalOverride(null);
+    }, [toolData.toolcallid]);
 
     useEffect(() => {
         if (groupApproved && baseApproval === "needs-approval") {
@@ -427,8 +433,13 @@ export const AIToolUseGroup = memo(({ parts, isStreaming }: AIToolUseGroupProps)
 
     const allPendingItems = [...readFileNeedsApproval, ...pendingSingleItems];
     const hasPendingApprovals = allPendingItems.length > 0;
+    const pendingApprovalSignature = getPendingApprovalSignature(allPendingItems, isStreaming);
 
     const [groupApproved, setGroupApproved] = useState(false);
+
+    useEffect(() => {
+        setGroupApproved(false);
+    }, [pendingApprovalSignature]);
 
     useEffect(() => {
         if (!autoApprove || !hasPendingApprovals || groupApproved) return;
@@ -436,7 +447,7 @@ export const AIToolUseGroup = memo(({ parts, isStreaming }: AIToolUseGroupProps)
         allPendingItems.forEach((part) => {
             WaveAIModel.getInstance().toolUseSendApproval(part.data.toolcallid, "user-approved");
         });
-    }, [autoApprove, hasPendingApprovals]);
+    }, [autoApprove, groupApproved, hasPendingApprovals, pendingApprovalSignature]);
 
     const handleApproveAll = useCallback(() => {
         setGroupApproved(true);
@@ -456,22 +467,22 @@ export const AIToolUseGroup = memo(({ parts, isStreaming }: AIToolUseGroupProps)
 
     return (
         <>
-            {groupedItems.map((item, idx) => {
+            {groupedItems.map((item) => {
                 if (item.type === "batch") {
                     return (
-                        <div key={idx} className="mt-2">
+                        <div key={`batch:${getToolUseSignature(item.parts)}`} className="mt-2">
                             <AIToolUseBatch parts={item.parts} isStreaming={isStreaming} />
                         </div>
                     );
                 } else if (item.type === "progress") {
                     return (
-                        <div key={idx} className="mt-2">
+                        <div key={`progress:${item.part.data.toolcallid}`} className="mt-2">
                             <AIToolProgress part={item.part} />
                         </div>
                     );
                 } else {
                     return (
-                        <div key={idx} className="mt-2">
+                        <div key={`tool:${item.part.data.toolcallid}`} className="mt-2">
                             <AIToolUse part={item.part} isStreaming={isStreaming} groupApproved={groupApproved} />
                         </div>
                     );

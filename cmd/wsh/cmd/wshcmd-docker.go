@@ -27,11 +27,15 @@ created on the remote connection to run the docker command.`,
 }
 
 var dockerFollow bool
+var dockerExecInteractive bool
+var dockerExecTty bool
 
 func init() {
 	rootCmd.AddCommand(dockerCmd)
 
 	dockerLogsCmd.Flags().BoolVarP(&dockerFollow, "follow", "f", false, "follow log output")
+	dockerExecCmd.Flags().BoolVarP(&dockerExecInteractive, "interactive", "i", false, "keep STDIN open (creates interactive block)")
+	dockerExecCmd.Flags().BoolVarP(&dockerExecTty, "tty", "t", false, "allocate pseudo-TTY (creates interactive block)")
 
 	dockerCmd.AddCommand(dockerPsCmd)
 	dockerCmd.AddCommand(dockerLogsCmd)
@@ -69,11 +73,10 @@ func dockerLogsRun(cmd *cobra.Command, args []string) error {
 }
 
 var dockerExecCmd = &cobra.Command{
-	Use:                "exec <container> [args...]",
-	Short:              "execute command in container",
-	Args:               cobra.MinimumNArgs(2),
-	RunE:               dockerPassthruRun("exec"),
-	DisableFlagParsing: true,
+	Use:   "exec [-i|-t] <container> <command> [args...]",
+	Short: "execute command in container",
+	Args:  cobra.MinimumNArgs(2),
+	RunE:  dockerExecRun,
 }
 
 var dockerStopCmd = &cobra.Command{
@@ -171,6 +174,49 @@ func runDockerCapture(dockerArgs []string) error {
 		return fmt.Errorf("docker %s: %w", dockerArgs[0], err)
 	}
 	return nil
+}
+
+func dockerExecRun(cmd *cobra.Command, args []string) error {
+	if dockerExecInteractive || dockerExecTty {
+		shellCmd := "docker exec"
+		if dockerExecInteractive {
+			shellCmd += " -i"
+		}
+		if dockerExecTty {
+			shellCmd += " -t"
+		}
+		shellCmd += " " + strings.Join(args, " ")
+		tabId := getTabIdFromEnv()
+		if tabId == "" {
+			return fmt.Errorf("no WAVETERM_TABID env var set")
+		}
+		createMeta := map[string]any{
+			waveobj.MetaKey_View:        "term",
+			waveobj.MetaKey_Controller:  "cmd",
+			waveobj.MetaKey_Cmd:         shellCmd,
+			waveobj.MetaKey_CmdShell:    true,
+			waveobj.MetaKey_CmdRunOnce:  true,
+			waveobj.MetaKey_CmdRunOnStart: true,
+			waveobj.MetaKey_CmdClearOnStart: true,
+		}
+		if RpcContext.Conn != "" {
+			createMeta[waveobj.MetaKey_Connection] = RpcContext.Conn
+		}
+		createBlockData := wshrpc.CommandCreateBlockData{
+			TabId: tabId,
+			BlockDef: &waveobj.BlockDef{
+				Meta: createMeta,
+			},
+			Focused: true,
+		}
+		_, err := wshclient.CreateBlockCommand(RpcClient, createBlockData, &wshrpc.RpcOpts{Timeout: 60000})
+		if err != nil {
+			return fmt.Errorf("creating docker exec block: %w", err)
+		}
+		return nil
+	}
+	dockerArgs := append([]string{"exec"}, args...)
+	return runDockerPassthru(dockerArgs)
 }
 
 func runDockerRemote(dockerArgs []string) error {
