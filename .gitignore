@@ -47,3 +47,14 @@ docs/superpowers
 
 # Sensitive config files with keys
 *.secret.json
+
+# Secrets / API keys / tokens / credentials MUST NEVER be committed.
+# Keep them in environment variables, Windows Credential Manager,
+# or a password manager outside the repo. Personal secret notes
+# (e.g. ~/Downloads/*.txt, ~/*.secret, ~/*.key) belong outside the
+# working tree; if you must keep a file inside the repo, use one of
+# the patterns below.
+*.pem
+*.key
+*.token
+secrets/
