@@ -128,7 +128,146 @@ func defineTools() []ToolDefinition {
 						"description": "Maximum bytes to return (default 50000, max 200000)",
 					},
 				},
+		"required": []string{"path"},
+			},
+		},
+	{
+		Name: "run_interactive_command",
+			Description: "Run a command in a Wave terminal widget and return the output. The command is executed in a sub-process and its stdout/stderr are captured. Supports a configurable timeout. Only allowlisted commands are permitted for safety.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"command": map[string]any{
+						"type": "string",
+						"description": "The command to run (must be on the allowlist)",
+					},
+					"timeout_ms": map[string]any{
+						"type": "integer",
+						"default": 30000,
+						"maximum": 120000,
+						"minimum": 1000,
+						"description": "Timeout in milliseconds (default 30000, max 120000)",
+					},
+				},
+				"required": []string{"command"},
+			},
+		},
+	{
+			Name: "list_agent_terminals",
+			Description: "List all terminal and web widgets in the current Wave session. Returns widget IDs, types, titles, and running status. Useful for monitoring other agents (kilo, opencode, codex) running in terminal widgets.",
+			InputSchema: map[string]any{
+				"type":       "object",
+				"properties": map[string]any{},
+			},
+		},
+		{
+			Name:        "read_dir",
+			Description: "List the contents of a directory. Returns file/directory names with size, type, and modification time. Respects max_entries limit to avoid huge listings.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"path": map[string]any{
+						"type":        "string",
+						"description": "Absolute path to the directory to list",
+					},
+					"max_entries": map[string]any{
+						"type":        "integer",
+						"default":     500,
+						"description": "Maximum entries to return (default 500, max 10000)",
+					},
+				},
 				"required": []string{"path"},
+			},
+		},
+		{
+			Name:        "write_text_file",
+			Description: "Write a text file to the filesystem. Creates parent directories if needed. Backs up existing files before overwriting. Restricted to paths under the user's home or current working directory.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"filename": map[string]any{
+						"type":        "string",
+						"description": "Absolute path to the file to write",
+					},
+					"contents": map[string]any{
+						"type":        "string",
+						"description": "The text content to write to the file",
+					},
+				},
+				"required": []string{"filename", "contents"},
+			},
+		},
+		{
+			Name:        "edit_text_file",
+			Description: "Edit a text file with atomic search-and-replace operations. Each edit specifies an old_str to find and a new_str to replace it with. All edits are validated before any changes are applied. Backs up the file before editing. Restricted to paths under the user's home or current working directory.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"filename": map[string]any{
+						"type":        "string",
+						"description": "Absolute path to the file to edit",
+					},
+					"edits": map[string]any{
+						"type":        "array",
+						"description": "Array of edit operations, each with old_str and new_str",
+						"items": map[string]any{
+							"type": "object",
+							"properties": map[string]any{
+								"old_str": map[string]any{
+									"type":        "string",
+									"description": "The exact text to find and replace",
+								},
+								"new_str": map[string]any{
+									"type":        "string",
+									"description": "The text to replace old_str with",
+								},
+								"desc": map[string]any{
+									"type":        "string",
+									"description": "Optional description of the edit",
+								},
+							},
+							"required": []string{"old_str", "new_str"},
+						},
+					},
+				},
+				"required": []string{"filename", "edits"},
+			},
+		},
+		{
+			Name:        "delete_text_file",
+			Description: "Delete a text file from the filesystem. Creates a backup before deletion. Restricted to files under the user's home or current working directory.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"filename": map[string]any{
+						"type":        "string",
+						"description": "Absolute path to the file to delete",
+					},
+				},
+				"required": []string{"filename"},
+			},
+		},
+		{
+			Name:        "codebase_search",
+			Description: "Search the codebase using a natural language query. Extracts keywords from the query and searches file contents for matches. Useful for finding code by concept rather than exact pattern.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"query": map[string]any{
+						"type":        "string",
+						"description": "Natural language search query",
+					},
+					"path": map[string]any{
+						"type":        "string",
+						"description": "Absolute directory path to search in (defaults to current working directory)",
+					},
+					"max_results": map[string]any{
+						"type":        "integer",
+						"default":     50,
+						"description": "Maximum results to return (default 50, max 500)",
+					},
+				},
+				"required": []string{"query"},
 			},
 		},
 	}
@@ -148,6 +287,20 @@ func handleToolCall(name string, args map[string]any) ToolCallResult {
 		return callGlob(args)
 	case "read_text_file":
 		return callReadTextFile(args)
+	case "run_interactive_command":
+		return callRunInteractiveCommand(args)
+	case "list_agent_terminals":
+		return callListAgentTerminals(args)
+	case "read_dir":
+		return callReadDir(args)
+	case "write_text_file":
+		return callWriteTextFile(args)
+	case "edit_text_file":
+		return callEditTextFile(args)
+	case "delete_text_file":
+		return callDeleteTextFile(args)
+	case "codebase_search":
+		return callCodebaseSearch(args)
 	default:
 		return ToolCallResult{
 			IsError: true,
@@ -261,12 +414,18 @@ func mcpResolvePath(rawPath string) (string, error) {
 	if rawPath == "" {
 		return os.Getwd()
 	}
-	if rawPath == "~" || strings.HasPrefix(rawPath, "~/") {
+	if rawPath == "~" {
 		home, err := os.UserHomeDir()
 		if err != nil {
 			return "", err
 		}
-		rawPath = filepath.Join(home, rawPath[1:])
+		rawPath = home
+	} else if strings.HasPrefix(rawPath, "~/") {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		rawPath = filepath.Join(home, rawPath[2:])
 	}
 	if !filepath.IsAbs(rawPath) {
 		return "", fmt.Errorf("path must be absolute: %s", rawPath)
