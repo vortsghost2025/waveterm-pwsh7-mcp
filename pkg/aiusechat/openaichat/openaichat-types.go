@@ -6,6 +6,8 @@ package openaichat
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
+	"strings"
 
 	"github.com/wavetermdev/waveterm/pkg/aiusechat/uctypes"
 )
@@ -248,7 +250,33 @@ func (m *StoredChatMessage) GetContentSummary() string {
 	if m == nil {
 		return ""
 	}
-	return m.Message.Role + ": (summary stub)"
+	role := m.Message.Role
+	// Tool call: show tool names
+	if len(m.Message.ToolCalls) > 0 {
+		var names []string
+		for _, tc := range m.Message.ToolCalls {
+			names = append(names, tc.Function.Name)
+		}
+		return fmt.Sprintf("%s: tool_calls[%s]", role, strings.Join(names, ","))
+	}
+	// Content parts (multimodal)
+	if len(m.Message.ContentParts) > 0 {
+		for _, cp := range m.Message.ContentParts {
+			if cp.Type == "text" && cp.Text != "" {
+				return fmt.Sprintf("%s: %s", role, cp.Text)
+			}
+		}
+		return fmt.Sprintf("%s: (%d content parts)", role, len(m.Message.ContentParts))
+	}
+	// Tool result
+	if m.Message.ToolCallID != "" {
+		return fmt.Sprintf("tool[%s]: %s", m.Message.Name, m.Message.Content)
+	}
+	// Plain text
+	if m.Message.Content != "" {
+		return fmt.Sprintf("%s: %s", role, m.Message.Content)
+	}
+	return fmt.Sprintf("%s: (empty)", role)
 }
 
 func (m *StoredChatMessage) Copy() *StoredChatMessage {

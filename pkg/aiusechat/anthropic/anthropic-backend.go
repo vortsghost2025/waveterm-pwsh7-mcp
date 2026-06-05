@@ -70,7 +70,19 @@ func (m *anthropicChatMessage) GetContentSummary() string {
 	if m == nil {
 		return ""
 	}
-	return m.Role + ": (summary stub)"
+	role := m.Role
+	for _, block := range m.Content {
+		if block.Type == "text" && block.Text != "" {
+			return fmt.Sprintf("%s: %s", role, block.Text)
+		}
+		if block.Type == "tool_use" && block.Name != "" {
+			return fmt.Sprintf("%s: tool_use[%s]", role, block.Name)
+		}
+		if block.Type == "tool_result" && block.ToolUseID != "" {
+			return fmt.Sprintf("%s: tool_result[%s]", role, block.ToolUseID[:8])
+		}
+	}
+	return fmt.Sprintf("%s: (%d content blocks)", role, len(m.Content))
 }
 
 type anthropicInputMessage struct {
@@ -468,6 +480,17 @@ func RunAnthropicChatStep(
 	// Convert GenAIMessages to anthropicInputMessages
 	var anthropicMsgs []anthropicInputMessage
 	for _, genMsg := range chat.NativeMessages {
+		// Handle compaction summary messages
+		if csm, ok := genMsg.(*uctypes.CompactionSummaryMessage); ok {
+			anthropicMsgs = append(anthropicMsgs, anthropicInputMessage{
+				Role: "user",
+				Content: []anthropicMessageContentBlock{{
+					Type: "text",
+					Text: csm.Text,
+				}},
+			})
+			continue
+		}
 		// Cast to anthropicChatMessage
 		chatMsg, ok := genMsg.(*anthropicChatMessage)
 		if !ok {

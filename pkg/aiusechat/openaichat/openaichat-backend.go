@@ -49,6 +49,14 @@ func RunChatStep(
 
 	// Convert native messages
 	for _, genMsg := range chat.NativeMessages {
+		// Handle compaction summary messages
+		if csm, ok := genMsg.(*uctypes.CompactionSummaryMessage); ok {
+			messages = append(messages, ChatRequestMessage{
+				Role: "user",
+				Content: csm.Text,
+			})
+			continue
+		}
 		chatMsg, ok := genMsg.(*StoredChatMessage)
 		if !ok {
 			return nil, nil, nil, fmt.Errorf("expected StoredChatMessage, got %T", genMsg)
