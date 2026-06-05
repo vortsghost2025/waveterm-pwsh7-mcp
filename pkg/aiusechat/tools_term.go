@@ -241,6 +241,130 @@ func parseTermCommandOutputInput(input any) (*TermCommandOutputToolInput, error)
 	return result, nil
 }
 
+type TermListWidgetsToolInput struct {
+	ViewType string `json:"view_type,omitempty"`
+}
+
+type WidgetInfo struct {
+	WidgetId   string `json:"widget_id"`
+	BlockId    string `json:"block_id"`
+	ViewType   string `json:"view_type"`
+	ShortDesc  string `json:"short_desc"`
+	ShellType  string `json:"shell_type,omitempty"`
+	ShellState string `json:"shell_state,omitempty"`
+}
+
+type TermListWidgetsToolOutput struct {
+	TabId   string       `json:"tab_id"`
+	Count   int          `json:"count"`
+	Widgets []WidgetInfo `json:"widgets"`
+}
+
+func parseTermListWidgetsInput(input any) (*TermListWidgetsToolInput, error) {
+	result := &TermListWidgetsToolInput{}
+	if input == nil {
+		return result, nil
+	}
+	inputBytes, err := json.Marshal(input)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal input: %w", err)
+	}
+	if err := json.Unmarshal(inputBytes, result); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal input: %w", err)
+	}
+	return result, nil
+}
+
+func executeTermListWidgets(tabId string, params *TermListWidgetsToolInput) (*TermListWidgetsToolOutput, error) {
+	ctx, cancelFn := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelFn()
+
+	tabObj, err := wstore.DBMustGet[*waveobj.Tab](ctx, tabId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tab %q: %w", tabId, err)
+	}
+
+	viewTypeFilter := params.ViewType
+	out := &TermListWidgetsToolOutput{
+		TabId:   tabId,
+		Widgets: []WidgetInfo{},
+	}
+
+	for _, blockId := range tabObj.BlockIds {
+		block, err := wstore.DBGet[*waveobj.Block](ctx, blockId)
+		if err != nil {
+			continue
+		}
+		if block.Meta == nil {
+			continue
+		}
+		viewType, ok := block.Meta["view"].(string)
+		if !ok {
+			continue
+		}
+		if viewTypeFilter != "" && viewType != viewTypeFilter {
+			continue
+		}
+
+		info := WidgetInfo{
+			WidgetId:  block.OID[:8],
+			BlockId:   block.OID,
+			ViewType:  viewType,
+			ShortDesc: MakeBlockShortDesc(block),
+		}
+
+		blockORef := waveobj.MakeORef(waveobj.OType_Block, block.OID)
+		if rtInfo := wstore.GetRTInfo(blockORef); rtInfo != nil {
+			info.ShellType = rtInfo.ShellType
+			info.ShellState = rtInfo.ShellState
+		}
+
+		out.Widgets = append(out.Widgets, info)
+	}
+	out.Count = len(out.Widgets)
+	return out, nil
+}
+
+func GetTermListWidgetsToolDefinition(tabId string) uctypes.ToolDefinition {
+	return uctypes.ToolDefinition{
+		Name:        "term_list_widgets",
+		DisplayName: "List Widgets in Tab",
+		Description: "Enumerate all widgets (blocks) open in the current tab. Returns the 8-character widget ID, view type (e.g. 'term', 'web', 'preview', 'waveai'), and a short description for each. Optionally filter by view_type.",
+		ToolLogName: "term:listwidgets",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"view_type": map[string]any{
+					"type":        "string",
+					"description": "Optional filter. Only return widgets with this view type (e.g. 'term', 'web', 'preview'). Omit to return all.",
+				},
+			},
+			"additionalProperties": false,
+		},
+		ToolCallDesc: func(input any, output any, toolUseData *uctypes.UIMessageDataToolUse) string {
+			parsed, err := parseTermListWidgetsInput(input)
+			if err != nil {
+				return fmt.Sprintf("error parsing input: %v", err)
+			}
+			if parsed.ViewType != "" {
+				return fmt.Sprintf("listing widgets with view_type=%q", parsed.ViewType)
+			}
+			return "listing all widgets in tab"
+		},
+		ToolAnyCallback: func(input any, toolUseData *uctypes.UIMessageDataToolUse) (any, error) {
+			parsed, err := parseTermListWidgetsInput(input)
+			if err != nil {
+				return nil, err
+			}
+			out, err := executeTermListWidgets(tabId, parsed)
+			if err != nil {
+				return nil, err
+			}
+			return out, nil
+		},
+	}
+}
+
 func GetTermCommandOutputToolDefinition(tabId string) uctypes.ToolDefinition {
 	return uctypes.ToolDefinition{
 		Name:        "term_command_output",

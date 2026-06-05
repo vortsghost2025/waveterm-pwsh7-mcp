@@ -1,4 +1,4 @@
-﻿// Copyright 2025, Command Line Inc.
+// Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 package xmltoolparse
@@ -21,9 +21,10 @@ type ParsedXMLToolCalls struct {
 }
 
 var (
-	xmlToolCallRE = regexp.MustCompile( ```)
-	xmlArgKeyRE   = regexp.MustCompile(<arg_key>(.*?)</arg_key>)
-	xmlArgValRE   = regexp.MustCompile(<arg_value>(.*?)</arg_value>)
+	xmlToolCallRE   = regexp.MustCompile("```tool")
+	xmlArgKeyRE     = regexp.MustCompile(`<arg_key>(.*?)</arg_key>`)
+	xmlArgValRE     = regexp.MustCompile(`<arg_value>(.*?)</arg_value>`)
+	xmlCloseFenceRE = regexp.MustCompile("\n```")
 )
 
 func ParseXMLToolCalls(content string) *ParsedXMLToolCalls {
@@ -33,44 +34,54 @@ func ParseXMLToolCalls(content string) *ParsedXMLToolCalls {
 		result.Text = content
 		return result
 	}
-	result.Text = strings.TrimSpace(content[:callStarts[0][0]])	searchOffset := callStarts[0][0]
+	result.Text = strings.TrimSpace(content[:callStarts[0][0]])
+	searchOffset := callStarts[0][0]
 	for {
 		openIdx := xmlToolCallRE.FindStringIndex(content[searchOffset:])
 		if openIdx == nil {
 			break
 		}
 		absOpen := searchOffset + openIdx[0]
-		tagClose := content[absOpen:].FindStringIndex(">")
-		if tagClose == nil {
+		afterFence := absOpen + len("```tool")
+		newlineIdx := strings.Index(content[afterFence:], "\n")
+		if newlineIdx == -1 {
 			break
 		}
-		toolNameStart := absOpen + tagClose[1]
-		toolName := strings.TrimSpace(content[toolNameStart:])
-		nameEnd := strings.Index(toolName, "<arg_key>")
-		if nameEnd == -1 {
-			searchOffset = toolNameStart + 1
-			continue
+		toolName := strings.TrimSpace(content[afterFence : afterFence+newlineIdx])
+		if strings.HasPrefix(toolName, "tool") {
+			toolName = strings.TrimSpace(toolName[len("tool"):])
 		}
-		toolName = strings.TrimSpace(toolName[:nameEnd])
 		if toolName == "" {
-			searchOffset = toolNameStart + 1
+			searchOffset = afterFence + newlineIdx + 1
 			continue
 		}
+		firstArgIdx := strings.Index(content[afterFence:], "<arg_key>")
+		if firstArgIdx == -1 {
+			break
+		}
+		bodyStart := afterFence + firstArgIdx
+		body := content[bodyStart:]
+		endIdx := len(body)
+		if m := xmlCloseFenceRE.FindStringIndex(body); m != nil {
+			endIdx = m[0]
+		} else if m := xmlToolCallRE.FindStringIndex(body); m != nil {
+			endIdx = m[0]
+		}
+		body = body[:endIdx]
 		tc := XMLToolCall{ToolName: toolName, Args: make(map[string]any)}
-		keyRegion := content[toolNameStart+nameEnd:]
-		keyMatches := xmlArgKeyRE.FindAllStringSubmatchIndex(keyRegion, -1)
+		keyMatches := xmlArgKeyRE.FindAllStringSubmatchIndex(body, -1)
 		for i, km := range keyMatches {
-			key := keyRegion[km[2]:km[3]]
+			key := body[km[2]:km[3]]
 			valRegionStart := km[3]
 			var valStr string
 			if i+1 < len(keyMatches) {
-				valRegion := keyRegion[valRegionStart:keyMatches[i+1][0]]
+				valRegion := body[valRegionStart:keyMatches[i+1][0]]
 				valMatch := xmlArgValRE.FindStringSubmatch(valRegion)
 				if len(valMatch) > 1 {
 					valStr = strings.TrimSpace(valMatch[1])
 				}
 			} else {
-				valRegion := keyRegion[valRegionStart:]
+				valRegion := body[valRegionStart:]
 				valMatch := xmlArgValRE.FindStringSubmatch(valRegion)
 				if len(valMatch) > 1 {
 					valStr = strings.TrimSpace(valMatch[1])
@@ -86,11 +97,10 @@ func ParseXMLToolCalls(content string) *ParsedXMLToolCalls {
 			tc.Args[key] = parsedVal
 		}
 		result.ToolCalls = append(result.ToolCalls, tc)
-		closeIdx := xmlArgValRE.FindStringIndex(content[toolNameStart:])
-		if closeIdx == nil {
+		searchOffset = bodyStart + endIdx + 1
+		if searchOffset > len(content) {
 			break
 		}
-		searchOffset = toolNameStart + closeIdx[1]
 	}
 	return result
 }
