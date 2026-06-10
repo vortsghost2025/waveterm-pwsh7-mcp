@@ -5,6 +5,7 @@ package uctypes
 
 import (
 	"crypto/rand"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"slices"
@@ -384,6 +385,14 @@ func (m *AIMessage) GetMessageId() string {
 	return m.MessageId
 }
 
+func (m *AIMessage) GetRole() string {
+	return "user"
+}
+
+func (m *AIMessage) GetUsage() *AIUsage {
+	return nil
+}
+
 func (m *AIMessage) GetContentSummary() string {
 	var sb strings.Builder
 	sb.WriteString("user: ")
@@ -674,4 +683,134 @@ func (m *CompactionSummaryMessage) GetRole() string    { return "user" }
 func (m *CompactionSummaryMessage) GetUsage() *AIUsage { return nil }
 func (m *CompactionSummaryMessage) GetContentSummary() string {
 	return fmt.Sprintf("user: %s", m.Text)
+}
+
+// typedMessage is a JSON wrapper that preserves the concrete type of a
+// GenAIMessage so it can be round-tripped through JSON for persistence.
+type typedMessage struct {
+	Type string          `json:"type"`
+	Data json.RawMessage `json:"data"`
+}
+
+// Known GenAIMessage type names for (de)serialization.
+const (
+	MsgTypeAnthropic  = "anthropic"
+	MsgTypeOpenAI     = "openai"
+	MsgTypeOpenAIChat = "openaichat"
+	MsgTypeGemini     = "gemini"
+	MsgTypeUser       = "user"
+	MsgTypeCompaction = "compaction"
+)
+
+// MarshalGenAIMessage serializes a GenAIMessage into a typedMessage JSON blob.
+func MarshalGenAIMessage(msg GenAIMessage) ([]byte, error) {
+	var typeName string
+	switch msg.(type) {
+	case *AIMessage:
+		typeName = MsgTypeUser
+	case *CompactionSummaryMessage:
+		typeName = MsgTypeCompaction
+	default:
+		typeName = lookupMessageType(msg)
+	}
+	if typeName == "" {
+		return nil, fmt.Errorf("unknown GenAIMessage type %T", msg)
+	}
+	data, err := json.Marshal(msg)
+	if err != nil {
+		return nil, fmt.Errorf("marshal %s message: %w", typeName, err)
+	}
+	return json.Marshal(&typedMessage{Type: typeName, Data: data})
+}
+
+// UnmarshalGenAIMessage deserializes a typedMessage JSON blob back into a GenAIMessage.
+func UnmarshalGenAIMessage(raw []byte) (GenAIMessage, error) {
+	var tm typedMessage
+	if err := json.Unmarshal(raw, &tm); err != nil {
+		return nil, fmt.Errorf("unmarshal typedMessage: %w", err)
+	}
+	var msg GenAIMessage
+	switch tm.Type {
+	case MsgTypeUser:
+		msg = &AIMessage{}
+	case MsgTypeCompaction:
+		msg = &CompactionSummaryMessage{}
+	default:
+		msg = lookupMessageZeroValue(tm.Type)
+	}
+	if msg == nil {
+		return nil, fmt.Errorf("unknown message type %q", tm.Type)
+	}
+	if err := json.Unmarshal(tm.Data, msg); err != nil {
+		return nil, fmt.Errorf("unmarshal %s message data: %w", tm.Type, err)
+	}
+	return msg, nil
+}
+
+// messageTypeRegistry maps type names to zero-value GenAIMessage instances.
+// Backends register themselves via RegisterMessageType from their init() functions.
+var msgNameToZero = map[string]GenAIMessage{}
+
+// RegisterMessageType is called from each backend's init() to register its
+// concrete GenAIMessage type for JSON round-tripping.
+func RegisterMessageType(typeName string, sample GenAIMessage) {
+	msgNameToZero[typeName] = sample
+}
+
+func lookupMessageType(msg GenAIMessage) string {
+	for name, zero := range msgNameToZero {
+		if fmt.Sprintf("%T", msg) == fmt.Sprintf("%T", zero) {
+			return name
+		}
+	}
+	return ""
+}
+
+func lookupMessageZeroValue(typeName string) GenAIMessage {
+	return msgNameToZero[typeName]
+}
+
+// MarshalAIChat serializes an AIChat (including its GenAIMessage slice) to JSON.
+func MarshalAIChat(chat *AIChat) ([]byte, error) {
+	wrapped := aiChatJSON{ChatId: chat.ChatId, APIType: chat.APIType, Model: chat.Model, APIVersion: chat.APIVersion}
+	for _, msg := range chat.NativeMessages {
+		raw, err := MarshalGenAIMessage(msg)
+		if err != nil {
+			return nil, err
+		}
+		wrapped.Messages = append(wrapped.Messages, raw)
+	}
+	return json.Marshal(wrapped)
+}
+
+// UnmarshalAIChat deserializes JSON back into an AIChat with concrete GenAIMessage types.
+func UnmarshalAIChat(data []byte) (*AIChat, error) {
+	var wrapped aiChatJSON
+	if err := json.Unmarshal(data, &wrapped); err != nil {
+		return nil, err
+	}
+	chat := &AIChat{
+		ChatId:        wrapped.ChatId,
+		APIType:       wrapped.APIType,
+		Model:         wrapped.Model,
+		APIVersion:    wrapped.APIVersion,
+		NativeMessages: make([]GenAIMessage, 0, len(wrapped.Messages)),
+	}
+	for _, raw := range wrapped.Messages {
+		msg, err := UnmarshalGenAIMessage(raw)
+		if err != nil {
+			return nil, fmt.Errorf("message %d: %w", len(chat.NativeMessages), err)
+		}
+		chat.NativeMessages = append(chat.NativeMessages, msg)
+	}
+	return chat, nil
+}
+
+// aiChatJSON is the wire format for persisting AIChat with polymorphic messages.
+type aiChatJSON struct {
+	ChatId     string            `json:"chatid"`
+	APIType    string            `json:"apitype"`
+	Model      string            `json:"model"`
+	APIVersion string            `json:"apiversion"`
+	Messages   []json.RawMessage `json:"messages"`
 }

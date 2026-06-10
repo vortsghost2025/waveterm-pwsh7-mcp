@@ -41,6 +41,11 @@ export interface DroppedFile {
     previewUrl?: string;
 }
 
+interface PendingMessage {
+    uiMessageParts: WaveUIMessagePart[];
+    realMessage: AIMessage;
+}
+
 const BuilderAIModeConfigs: Record<string, AIModeConfigType> = {
     "waveaibuilder@default": {
         "display:name": "Builder Default",
@@ -90,6 +95,8 @@ export class WaveAIModel {
     inputAtom: jotai.PrimitiveAtom<string> = jotai.atom("");
     isLoadingChatAtom: jotai.PrimitiveAtom<boolean> = jotai.atom(false);
     isChatEmptyAtom: jotai.PrimitiveAtom<boolean> = jotai.atom(true);
+    chatStatusAtom: jotai.PrimitiveAtom<ChatStatus> = jotai.atom("ready");
+    pendingMessagesAtom: jotai.PrimitiveAtom<PendingMessage[]> = jotai.atom([]);
     isWaveAIFocusedAtom!: jotai.Atom<boolean>;
     panelVisibleAtom!: jotai.Atom<boolean>;
     restoreBackupModalToolCallId: jotai.PrimitiveAtom<string | null> = jotai.atom(null) as jotai.PrimitiveAtom<
@@ -306,6 +313,7 @@ export class WaveAIModel {
         this.clearFiles();
         this.clearError();
         globalStore.set(this.isChatEmptyAtom, true);
+        globalStore.set(this.pendingMessagesAtom, []);
         const newChatId = crypto.randomUUID();
         globalStore.set(this.chatId, newChatId);
 
@@ -343,6 +351,7 @@ export class WaveAIModel {
         this.useChatSetMessages = setMessages;
         this.useChatStatus = status;
         this.useChatStop = stop;
+        globalStore.set(this.chatStatusAtom, status);
     }
 
     scrollToBottom() {
@@ -367,6 +376,7 @@ export class WaveAIModel {
 
     async stopResponse() {
         this.useChatStop?.();
+        globalStore.set(this.pendingMessagesAtom, []);
         await new Promise((resolve) => setTimeout(resolve, 500));
 
         const chatIdValue = globalStore.get(this.chatId);
@@ -378,6 +388,22 @@ export class WaveAIModel {
             this.useChatSetMessages?.(messages);
         } catch (error) {
             console.error("Failed to reload chat after stop:", error);
+        }
+    }
+
+    private processQueue(): void {
+        const status = globalStore.get(this.chatStatusAtom);
+        const pendingMessages = globalStore.get(this.pendingMessagesAtom);
+
+        if ((status === "ready" || status === "error") && pendingMessages.length > 0) {
+            const nextMessage = pendingMessages[0];
+            const remainingMessages = pendingMessages.slice(1);
+
+            globalStore.set(this.pendingMessagesAtom, remainingMessages);
+
+            this.realMessage = nextMessage.realMessage;
+            this.useChatSendMessage?.({ parts: nextMessage.uiMessageParts });
+            globalStore.set(this.isChatEmptyAtom, false);
         }
     }
 
@@ -532,11 +558,57 @@ export class WaveAIModel {
             return;
         }
 
-        if (
-            (!input.trim() && droppedFiles.length === 0) ||
-            (this.useChatStatus !== "ready" && this.useChatStatus !== "error") ||
-            globalStore.get(this.isLoadingChatAtom)
-        ) {
+        if (!input.trim() && droppedFiles.length === 0) {
+            return;
+        }
+
+        const chatStatus = globalStore.get(this.chatStatusAtom);
+        const isLoadingChat = globalStore.get(this.isLoadingChatAtom);
+
+        if ((chatStatus !== "ready" && chatStatus !== "error") || isLoadingChat) {
+            // Queue the message for later processing
+            const aiMessageParts: AIMessagePart[] = [];
+            const uiMessageParts: WaveUIMessagePart[] = [];
+
+            if (input.trim()) {
+                aiMessageParts.push({ type: "text", text: input.trim() });
+                uiMessageParts.push({ type: "text", text: input.trim() });
+            }
+
+            for (const droppedFile of droppedFiles) {
+                const normalizedMimeType = normalizeMimeType(droppedFile.file);
+                const dataUrl = await createDataUrl(droppedFile.file);
+
+                aiMessageParts.push({
+                    type: "file",
+                    filename: droppedFile.name,
+                    mimetype: normalizedMimeType,
+                    url: dataUrl,
+                    size: droppedFile.file.size,
+                    previewurl: droppedFile.previewUrl,
+                });
+
+                uiMessageParts.push({
+                    type: "data-userfile",
+                    data: {
+                        filename: droppedFile.name,
+                        mimetype: normalizedMimeType,
+                        size: droppedFile.file.size,
+                        previewurl: droppedFile.previewUrl,
+                    },
+                });
+            }
+
+            const realMessage: AIMessage = {
+                messageid: crypto.randomUUID(),
+                parts: aiMessageParts,
+            };
+
+            const pendingMessages = globalStore.get(this.pendingMessagesAtom);
+            globalStore.set(this.pendingMessagesAtom, [...pendingMessages, { uiMessageParts, realMessage }]);
+
+            globalStore.set(this.inputAtom, "");
+            this.clearFiles();
             return;
         }
 

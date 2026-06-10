@@ -315,7 +315,15 @@ const AIPanelComponentInner = memo(({ roundTopLeft }: AIPanelComponentInnerProps
 
     useEffect(() => {
         globalStore.set(model.isAIStreaming, status === "streaming" || status === "submitted");
+        globalStore.set(model.chatStatusAtom, status);
     }, [status]);
+
+    useEffect(() => {
+        // Process queued messages when AI becomes ready
+        if (status === "ready" || status === "error") {
+            model.processQueue();
+        }
+    }, [status, model]);
 
     useEffect(() => {
         const keyHandler = keydownWrapper(handleKeyDown);
