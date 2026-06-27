@@ -129,6 +129,12 @@ func buildGeminiHTTPRequest(ctx context.Context, contents []GeminiContent, chatO
 		}
 	}
 
+	var toolNames []string
+	for _, tool := range allTools {
+		toolNames = append(toolNames, tool.Name)
+	}
+	log.Printf("[AIUSECHAT GEMINI TOOLS] chatId=%s tools=%s", chatOpts.ChatId, strings.Join(toolNames, ","))
+
 	// Injected data - append to last user message as separate parts
 	if chatOpts.TabState != "" {
 		appendPartToLastUserMessage(reqBody.Contents, chatOpts.TabState)

@@ -6,6 +6,7 @@ package aiusechat
 import (
 	"context"
 	"fmt"
+	"log"
 	"os/user"
 	"strings"
 
@@ -173,6 +174,8 @@ func GenerateTabStateAndTools(ctx context.Context, tabid string, widgetAccess bo
 		tools = append(tools, GetWriteTextFileToolDefinition())
 		tools = append(tools, GetEditTextFileToolDefinition())
 		tools = append(tools, GetDeleteTextFileToolDefinition())
+		tools = append(tools, GetBridgeReadInboxToolDefinition())
+		tools = append(tools, GetBridgeWriteReplyToolDefinition())
 		tools = append(tools, GetRunCommandToolDefinition())
 		tools = append(tools, GetRunInteractiveCommandToolDefinition())
 		tools = append(tools, GetGrepToolDefinition())
@@ -200,8 +203,29 @@ func GenerateTabStateAndTools(ctx context.Context, tabid string, widgetAccess bo
 		}
 		if viewTypes["term"] {
 			tools = append(tools, GetTermGetScrollbackToolDefinition(tabid))
+			tools = append(tools, GetTermSendInputToolDefinition(tabid))
+			tools = append(tools, GetTermRunCommandToolDefinition(tabid))
+			tools = append(tools, GetTermSpawnAgentToolDefinition(tabid))
+			tools = append(tools, GetTermGetAgentStatusToolDefinition(tabid))
 			// tools = append(tools, GetTermCommandOutputToolDefinition(tabid))
 		}
+
+		hasScrollback := false
+		hasSendInput := false
+		for _, tool := range tools {
+			if tool.Name == "term_get_scrollback" {
+				hasScrollback = true
+			}
+			if tool.Name == "term_send_input" {
+				hasSendInput = true
+			}
+		}
+		log.Printf("[AIUSECHAT TERMTOOLS CHECK] tab=%s term_get_scrollback=%v term_send_input=%v total_tools=%d",
+			tabid,
+			hasScrollback,
+			hasSendInput,
+			len(tools),
+		)
 		if viewTypes["web"] {
 			tools = append(tools, GetWebNavigateToolDefinition(tabid))
 		}

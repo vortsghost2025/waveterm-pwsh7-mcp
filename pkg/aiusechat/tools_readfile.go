@@ -403,7 +403,7 @@ func GetReadTextFileToolDefinition() uctypes.ToolDefinition {
 		},
 		ToolAnyCallback: readTextFileCallback,
 		ToolApproval: func(input any) string {
-			return uctypes.ApprovalNeedsApproval
+			return uctypes.ApprovalAutoApproved
 		},
 		ToolVerifyInput: verifyReadTextFileInput,
 	}

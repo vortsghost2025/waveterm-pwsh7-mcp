@@ -1,0 +1,739 @@
+7 models
+Refine models
+
+Sort By
+
+dateCreated:DESC
+
+Most Recent
+nvidia
+NVIDIA
+Downloadable
+Free Endpoint
+nemotron-3-ultra-550b-a55b
+Open, efficient hybrid Mamba-Transformer MoE with 1M context, excelling in agentic reasoning, coding, planning, tool calling, and more
+Agent
++4
+266K
+Today
+nvidia
+NVIDIA
+Free Endpoint
+nemotron-3.5-content-safety
+Multilingual, multimodal model for detecting unsafe and toxic content.
+llm safety
++3
+4.84K
+2d
+nvidia
+NVIDIA
+Free Endpoint
+cosmos3-nano
+Generates physics-aware videos from text prompts or an image prompt for physical AI development.
+autonomous vehicles
++5
+1.05K
+4d
+nvidia
+NVIDIA
+Downloadable
+Free Endpoint
+cosmos3-nano-reasoner
+Vision language model that excels in understanding the physical world using structured reasoning on videos or images.
+B200
++21
+1.01K
+4d
+stepfun-ai
+Stepfun-ai
+Downloadable
+Free Endpoint
+step-3.7-flash
+A sparse MoE multimodal reasoning model good for enterprise, agentic and coding tasks.
+B200
++5
+2.13M
+7d
+moonshotai
+Moonshotai
+Downloadable
+Free Endpoint
+kimi-k2.6
+1T multimodal MoE for long-horizon coding, agentic tool use, and image/video understanding.
+B200
++6
+6.03M
+1mo
+mistralai
+Mistral AI
+Downloadable
+Free Endpoint
+mistral-medium-3.5-128b
+A high performing model for text generation, coding and agentic use cases
+coding
++3
+3.24M
+1mo
+nvidia
+NVIDIA
+Downloadable
+Free Endpoint
+nemotron-3-nano-omni-30b-a3b-reasoning
+Nemotron 3 Nano Omni is an omni-modal reasoning model that understands images, video, speech, text.
+Image-to-Text
++4
+8.65M
+1mo
+deepseek-ai
+DeepSeek AI
+Downloadable
+Free Endpoint
+deepseek-v4-flash
+DeepSeek V4 Flash is a 284B MoE model with 1M-token context optimized for fast coding and agents.
+B200
++6
+13.41M
+1mo
+z-ai
+Z.ai
+Downloadable
+Free Endpoint
+glm-5.1
+GLM-5.1 is a flagship LLM for agentic workflows, coding, and long-horizon reasoning tasks.
+B200
++5
+25.39M
+1mo
+nvidia
+NVIDIA
+Free Endpoint
+nemotron-3-content-safety
+Multilingual, multimodal model for detecting unsafe and toxic content.
+llm safety
++3
+220K
+1mo
+nvidia
+NVIDIA
+Downloadable
+Free Endpoint
+synthetic-video-detector
+NVIDIA Synthetic Video Detector is an AI-powered micro-service for detecting AI‑generated (synthetic) videos.
+broadcast
++4
+91.43K
+1mo
+nvidia
+NVIDIA
+Downloadable
+Free Endpoint
+Active Speaker Detection
+Detect and track speaker identities across video frames.
+broadcast
++7
+361
+1mo
+nvidia
+NVIDIA
+Downloadable
+Free Endpoint
+ising-calibration-1-35b-a3b
+Open VLM for quantum computer calibration chart understanding across a range of qubit modalities.
+Quantum
++3
+330K
+1mo
+minimaxai
+Minimaxai
+Downloadable
+Free Endpoint
+minimax-m2.7
+MiniMax M2.7 is a 230B-parameter text-to-text AI model excelling in coding, reasoning, and office tasks.
+B200
++5
+13.47M
+1mo
+google
+Google
+Downloadable
+Free Endpoint
+gemma-4-31b-it
+Dense 31B model delivering frontier reasoning for coding, agentic workflows, and fine-tuning.
+B200
++6
+5.48M
+2mo
+mistralai
+Mistral AI
+Downloadable
+Free Endpoint
+mistral-small-4-119b-2603
+Hybrid MoE model unifying instruct, reasoning, and coding with multimodal input and 256k context
+code generation
++2
+18.43M
+2mo
+nvidia
+NVIDIA
+Free Endpoint
+nemotron-voicechat
+Nemotron 3 Voicechat
+English
++2
+2.05K
+2mo
+nvidia
+NVIDIA
+Downloadable
+Free Endpoint
+nemotron-3-super-120b-a12b
+Open, efficient hybrid Mamba-Transformer MoE with 1M context, excelling in agentic reasoning, coding, planning, tool calling, and more
+MoE
++4
+58.13M
+2mo
+qwen
+Qwen
+Downloadable
+Free Endpoint
+qwen3.5-122b-a10b
+122B MoE LLM (10B active) for coding, reasoning, multimodal chat. Agent-ready.
+B200
++5
+9.26M
+3mo
+nvidia
+NVIDIA
+Free Endpoint
+gliner-pii
+GLiNER PII detects Personally Identifiable Information in text.
+PII Detection
++1
+252K
+3mo
+nvidia
+NVIDIA
+Free Endpoint
+cosmos-transfer2.5-2b
+Generates physics-aware video world states for physical AI development using text prompts and multiple spatial control inputs derived from real-world data or simulation.
+Synthetic Data Generation
++4
+3mo
+qwen
+Qwen
+Downloadable
+Free Endpoint
+qwen3.5-397b-a17b
+Next-gen Qwen 3.5 VLM (400B MoE) brings advanced vision, chat, RAG, and agentic capabilities.
+MoE
++3
+11.21M
+3mo
+stepfun-ai
+Stepfun-ai
+Free Endpoint
+step-3.5-flash
+200B open-source reasoning engine with sparse MoE powering frontier agentic AI.
+Agentic
++2
+11.5M
+4mo
+nvidia
+NVIDIA
+Free Endpoint
+nemotron-content-safety-reasoning-4b
+A context‑aware safety model that applies reasoning to enforce domain‑specific policies.
+NeMo Guardrails
++3
+128K
+4mo
+nvidia
+NVIDIA
+Downloadable
+Free Endpoint
+nemotron-3-nano-30b-a3b
+Open, efficient MoE model with 1M context, excelling in coding, reasoning, instruction following, tool calling, and more
+MoE
++3
+11.35M
+5mo
+nvidia
+NVIDIA
+Free Endpoint
+riva-translate-4b-instruct-v1_1
+Translation model in 12 languages with few-shots example prompts capability.
+nvidia nim
++2
+320K
+5mo
+mistralai
+Mistral AI
+Free Endpoint
+mistral-large-3-675b-instruct-2512
+A state-of-the-art general purpose MoE VLM ideal for chat, agentic and instruction based use cases.
+language generation
++3
+3.19M
+6mo
+mistralai
+Mistral AI
+Downloadable
+Free Endpoint
+ministral-14b-instruct-2512
+A general purpose VLM ideal for chat and instruction based use cases
+language generation
++4
+3.34M
+6mo
+nvidia
+NVIDIA
+Free Endpoint
+streampetr
+StreamPETR offers efficient 3D object detection for autonomous driving by propagating sparse object queries temporally.
+autonomous vehicles
++3
+214
+6mo
+nvidia
+NVIDIA
+Downloadable
+Free Endpoint
+nemotron-nano-12b-v2-vl
+Nemotron Nano 12B v2 VL enables multi-image and video understanding, along with visual Q&A and summarization capabilities.
+language generation
++3
+2.07M
+7mo
+nvidia
+NVIDIA
+Free Endpoint
+llama-3.1-nemotron-safety-guard-8b-v3
+Leading multilingual content safety model for enhancing the safety and moderation capabilities of LLMs
+content moderation
++4
+351K
+7mo
+Stockmark
+Downloadable
+Free Endpoint
+stockmark-2-100b-instruct
+Japanese-specialized large-language-model for enterprises to read and understand complex business documents.
+sovereign ai
++14
+1.52M
+8mo
+qwen
+Qwen
+Downloadable
+Free Endpoint
+qwen3-next-80b-a3b-instruct
+Qwen3-Next Instruct blends hybrid attention, sparse MoE, and stability boosts for ultra-long context AI.
+B200
++4
+23.01M
+8mo
+bytedance
+ByteDance
+Free Endpoint
+seed-oss-36b-instruct
+ByteDance open-source LLM with long-context, reasoning, and agentic intelligence.
+thinking budget
++2
+1.14M
+9mo
+qwen
+Qwen
+Free Endpoint
+qwen3-coder-480b-a35b-instruct
+Excels in agentic coding and browser use and supports 256K context, delivering top results.
+agentic coding
++3
+4.89M
+9mo
+nvidia
+NVIDIA
+Downloadable
+Free Endpoint
+nvidia-nemotron-nano-9b-v2
+High‑efficiency LLM with hybrid Transformer‑Mamba design, excelling in reasoning and agentic tasks.
+thinking budget
++1
+983K
+9mo
+openai
+OpenAI
+Downloadable
+Free Endpoint
+gpt-oss-20b
+Smaller Mixture of Experts (MoE) text-only LLM for efficient AI reasoning and math
+reasoning
++3
+19.51M
+10mo
+openai
+OpenAI
+Downloadable
+Free Endpoint
+gpt-oss-120b
+Mixture of Experts (MoE) reasoning LLM (text-only) designed to fit within 80GB GPU.
+reasoning
++3
+48.19M
+10mo
+nvidia
+NVIDIA
+Downloadable
+Free Endpoint
+llama-3.3-nemotron-super-49b-v1.5
+High efficiency model with leading accuracy for reasoning, tool calling, chat, and instruction following.
+B200
++17
+2.84M
+10mo
+Sarvamai
+Downloadable
+Free Endpoint
+sarvam-m
+Multilingual, hybrid-reasoning model optimized for Indian language tasks, programming, mathematical reasoning capabilities.
+coding
++5
+277K
+10mo
+meta
+Meta
+Free Endpoint
+llama-guard-4-12b
+Multi-modal model to classify safety for input prompts as well output responses.
+LLM Multimodal Safety
++3
+186K
+11mo
+google
+Google
+Free Endpoint
+gemma-3n-e4b-it
+An edge computing AI model which accepts text, audio and image input, ideal for resource-constrained environments
+language generation
++3
+3.44M
+10mo
+google
+Google
+Free Endpoint
+gemma-3n-e2b-it
+An edge computing AI model which accepts text, audio and image input, ideal for resource-constrained environments
+language generation
++3
+44.67M
+10mo
+nvidia
+NVIDIA
+Free Endpoint
+cosmos-transfer1-7b
+Generates physics-aware video world states for physical AI development using text prompts and multiple spatial control inputs derived from real-world data or simulation.
+Synthetic Data Generation
++4
+248
+11mo
+nvidia
+NVIDIA
+Downloadable
+Free Endpoint
+Background Noise Removal
+Removes unwanted noises from audio improving speech intelligibility.
+denoising
++3
+509
+11mo
+mistralai
+Mistral AI
+Free Endpoint
+mistral-nemotron
+Built for agentic workflows, this model excels in coding, instruction following, and function calling
+language generation
++2
+1.66M
+11mo
+nvidia
+NVIDIA
+Downloadable
+Free Endpoint
+llama-3.1-nemotron-nano-vl-8b-v1
+Multi-modal vision-language model that understands text/img and creates informative responses
+doc intelligence
++7
+8.64M
+11mo
+nvidia
+NVIDIA
+Free Endpoint
+magpie-tts-zeroshot
+Expressive and engaging text-to-speech, generated from a short audio sample.
+TTS
++3
+18.68K
+11mo
+meta
+Meta
+Free Endpoint
+llama-4-maverick-17b-128e-instruct
+A general purpose multimodal, multilingual 128 MoE model with 17B parameters.
+language generation
++3
+23.24M
+10mo
+nvidia
+NVIDIA
+Free Endpoint
+cosmos-predict1-5b
+Generates future frames of a physics-aware world state based on simply an image or short video prompt for physical AI development.
+Synthetic Data Generation
++4
+934
+1y
+nvidia
+NVIDIA
+Free Endpoint
+sparsedrive
+End-to-end autonomous driving stack integrating perception, prediction, and planning with sparse scene representations for efficiency and safety.
+autonomous vehicles
++3
+85
+10mo
+nvidia
+NVIDIA
+Free Endpoint
+bevformer
+Advanced transformer for multi-frame bird's-eye-view 3D perception in autonomous driving.
+autonomous vehicles
++3
+129
+10mo
+nvidia
+NVIDIA
+Downloadable
+Free Endpoint
+llama-3.3-nemotron-super-49b-v1
+High efficiency model with leading accuracy for reasoning, tool calling, chat, and instruction following.
+B200
++13
+5.22M
+10mo
+nvidia
+NVIDIA
+Downloadable
+Free Endpoint
+llama-3.1-nemotron-nano-8b-v1
+Leading reasoning and agentic AI accuracy model for PC and edge.
+H100 NVL
++9
+872K
+11mo
+nvidia
+NVIDIA
+Free Endpoint
+nv-embedcode-7b-v1
+The NV-EmbedCode model is a 7B Mistral-based embedding model optimized for code retrieval, supporting text, code, and hybrid queries.
+nemo retriever
++2
+614K
+1y
+microsoft
+Microsoft
+Downloadable
+Free Endpoint
+phi-4-mini-instruct
+Lightweight multilingual LLM powering AI applications in latency bound, memory/compute constrained environments
+Chat
++3
+450K
+1y
+microsoft
+Microsoft
+Free Endpoint
+phi-4-multimodal-instruct
+Cutting-edge open multimodal model exceling in high-quality reasoning from image and audio inputs.
+Speech Recognition
++4
+276K
+1y
+nvidia
+NVIDIA
+Free Endpoint
+usdcode
+State-of-the-art LLM that answers OpenUSD knowledge queries and generates USD-Python code.
+Digital Twin
++4
+11mo
+meta
+Meta
+Downloadable
+Free Endpoint
+llama-3.3-70b-instruct
+Advanced LLM for reasoning, math, general knowledge, and function calling
+B200
++18
+15.16M
+11mo
+nvidia
+NVIDIA
+Downloadable
+Free Endpoint
+Studio Voice
+Enhance input speech recorded with low-quality microphones in noisy or reverberant environments, producing studio-quality speech.
+broadcast
++6
+987
+11mo
+meta
+Meta
+Downloadable
+Free Endpoint
+llama-3.2-3b-instruct
+Advanced state-of-the-art small language model with language understanding, superior reasoning, and text generation.
+B200
++13
+25.41K
+1.15M
+1y
+meta
+Meta
+Downloadable
+Free Endpoint
+llama-3.2-11b-vision-instruct
+Cutting-edge vision-language model exceling in high-quality reasoning from images.
+Image-Text Retrieval
++4
+1.56M
+1y
+meta
+Meta
+Downloadable
+Free Endpoint
+llama-3.2-90b-vision-instruct
+Cutting-edge vision-Language model exceling in high-quality reasoning from images.
+Image-Text Retrieval
++4
+2.56M
+1y
+meta
+Meta
+Downloadable
+Free Endpoint
+llama-3.2-1b-instruct
+Advanced state-of-the-art small language model with language understanding, superior reasoning, and text generation.
+B200
++17
+43.6K
+317K
+1y
+Abacus.AI
+Free Endpoint
+dracarys-llama-3.1-70b-instruct
+Fine-tuned Llama 3.1 70B model for code generation, summarization, and multi-language tasks.
+Code Generation
++1
+681K
+1y
+meta
+Meta
+Free Endpoint
+esm2-650m
+Generates embeddings of proteins from their amino acid sequences.
+nim
++4
+137K
+1y
+nvidia
+NVIDIA
+Free Endpoint
+nemotron-mini-4b-instruct
+Optimized SLM for on-device inference and fine-tuned for roleplay, RAG and function calling
+Chat
++2
+1.62M
+1y
+google
+Google
+Free Endpoint
+gemma-2-2b-it
+Advanced small language generative AI model for edge applications
+Chat
++3
+917K
+1y
+meta
+Meta
+Downloadable
+Free Endpoint
+llama-3.1-70b-instruct
+Powers complex conversations with superior contextual understanding, reasoning and text generation.
+B200
++18
+3.77M
+11mo
+meta
+Meta
+Downloadable
+Free Endpoint
+llama-3.1-8b-instruct
+Advanced state-of-the-art model with language understanding, superior reasoning, and text generation.
+B200
++19
+28.96M
+11mo
+nvidia
+NVIDIA
+Free Endpoint
+nv-embed-v1
+Generates high-quality numerical embeddings from text inputs.
+Non-Commercial Use Only
++2
+3.32M
+10mo
+upstage
+Upstage
+Free Endpoint
+solar-10.7b-instruct
+Excels in NLP tasks, particularly in instruction-following, reasoning, and mathematics.
+Non-Commercial Use Only
++4
+483K
+1y
+google
+Google
+Free Endpoint
+paligemma
+Vision language model adept at comprehending text and visual inputs to produce informative responses
+image
++8
+10.77K
+1y
+nvidia
+NVIDIA
+Free Endpoint
+rerank-qa-mistral-4b
+GPU-accelerated model optimized for providing a probability score that a given passage contains the information to answer a question.
+Ranking
++2
+459K
+1y
+meta
+Meta
+Free Endpoint
+esmfold
+Predicts the 3D structure of a protein from its amino acid sequence.
+biology
++4
+793K
+11mo
+mistralai
+Mistral AI
+Downloadable
+Free Endpoint
+mixtral-8x7b-instruct-v0.1
+An MOE LLM that follows instructions, completes requests, and generates creative text.
+B200
++13
+767K
+10mo

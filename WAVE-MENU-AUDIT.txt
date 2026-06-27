@@ -1,0 +1,337 @@
+=== WAVE MENU AUDIT ===
+Time: 06/15/2026 12:34:07
+
+=== plus / add menu patterns ===
+
+--- PATTERN: plus ---
+
+Path                                                             LineNumber Line
+----                                                             ---------- ----
+S:\waveterm\frontend\app\aipanel\aimode.tsx                             312                             <i className={makeIconClass("plus", false)}></i>
+S:\waveterm\frontend\app\aipanel\byokannouncement.tsx                    46                         OpenRouter, plus local models via Ollama, LM Studio, and other OpenAI-compatible providers.
+S:\waveterm\frontend\app\block\blockframe-header.tsx                    177             icon: "circle-plus",
+S:\waveterm\frontend\app\element\quicktips.tsx                           85                 <span key={`plus-${chordIdx}`} className="text-secondary mx-1">
+S:\waveterm\frontend\app\modals\conntypeahead.tsx                       275         icon: "plus",
+S:\waveterm\frontend\app\onboarding\onboarding-upgrade-v0122.tsx         10                     Plus performance improvements and bug fixes.
+S:\waveterm\frontend\app\tab\tabbar.tsx                                 665                 <i className="fa fa-solid fa-plus" />
+S:\waveterm\frontend\app\tab\vtabbar.tsx                                431                 <i className="fa fa-solid fa-plus" style={{ fontSize: "10px" }} />
+S:\waveterm\frontend\app\tab\workspaceswitcher.tsx                      139                                 <i className="fa-sharp fa-solid fa-plus"></i>
+S:\waveterm\frontend\app\view\preview\preview-streaming.tsx              20                 <i className="fa-sharp fa-plus" />
+S:\waveterm\frontend\app\view\waveconfig\secretscontent.tsx              51                 <i className="fa-sharp fa-solid fa-plus" />
+S:\waveterm\frontend\app\view\waveconfig\secretscontent.tsx             107                     <i className="fa-sharp fa-solid fa-plus text-accent-500" />
+S:\waveterm\frontend\builder\tabs\builder-filestab.tsx                  331                         <i className="fa fa-plus mr-2" />
+
+
+
+--- PATTERN: addblock ---
+
+
+--- PATTERN: addnewblock ---
+
+
+--- PATTERN: addtab ---
+
+Path                                    LineNumber Line
+----                                    ---------- ----
+S:\waveterm\frontend\app\tab\tabbar.tsx        533     const handleAddTab = () => {
+S:\waveterm\frontend\app\tab\tabbar.tsx        663                 onClick={handleAddTab}
+
+
+
+--- PATTERN: newtab ---
+
+Path                                              LineNumber Line
+----                                              ---------- ----
+S:\waveterm\frontend\app\store\keymodel.ts               286     const newTabIdx = index - 1;
+S:\waveterm\frontend\app\store\keymodel.ts               288     if (newTabIdx < 0 || newTabIdx >= tabids.length) {
+S:\waveterm\frontend\app\store\keymodel.ts               291     const newActiveTabId = tabids[newTabIdx];
+S:\waveterm\frontend\app\store\keymodel.ts               310     const newTabIdx = (tabIdx + offset + tabids.length) % tabids.length;
+S:\waveterm\frontend\app\store\keymodel.ts               311     const newActiveTabId = tabids[newTabIdx];
+S:\waveterm\frontend\app\tab\tabbar.tsx                  103     const [newTabId, setNewTabId] = useState<string | null>(null);
+S:\waveterm\frontend\app\tab\tabbar.tsx                  150         const newTabIdsArr = workspace.tabids ?? [];
+S:\waveterm\frontend\app\tab\tabbar.tsx                  152         const areEqual = strArrayIsEqual(tabIds, newTabIdsArr);
+S:\waveterm\frontend\app\tab\tabbar.tsx                  155             setTabIds(newTabIdsArr);
+S:\waveterm\frontend\app\tab\tabbar.tsx                  257     }, [tabIds, newTabId, isFullScreen]);
+S:\waveterm\frontend\app\tab\tabbar.tsx                  275     // update layout on changed tabIds, tabsLoaded, newTabId, hideAiButton, appUpdateStatus, or zoomFactor
+S:\waveterm\frontend\app\tab\tabbar.tsx                  289         newTabId,
+S:\waveterm\frontend\app\tab\tabbar.tsx                  311     const getNewTabIndex = (currentX: number, tabIndex: number, dragDirection: string) => {
+S:\waveterm\frontend\app\tab\tabbar.tsx                  312         let newTabIndex = tabIndex;
+S:\waveterm\frontend\app\tab\tabbar.tsx                  319                     newTabIndex = i;
+S:\waveterm\frontend\app\tab\tabbar.tsx                  327                     newTabIndex = i;
+S:\waveterm\frontend\app\tab\tabbar.tsx                  331         return newTabIndex;
+S:\waveterm\frontend\app\tab\tabbar.tsx                  407         const newTabIndex = getNewTabIndex(currentX, tabIndex, dragDirection);
+S:\waveterm\frontend\app\tab\tabbar.tsx                  409         if (newTabIndex !== tabIndex) {
+S:\waveterm\frontend\app\tab\tabbar.tsx                  423             tabIds.splice(newTabIndex, 0, tabId);
+S:\waveterm\frontend\app\tab\tabbar.tsx                  434             draggingTabDataRef.current.tabIndex = newTabIndex;
+S:\waveterm\frontend\app\tab\tabbar.tsx                  526     const setNewTabIdDebounced = useCallback(
+S:\waveterm\frontend\app\tab\tabbar.tsx                  528             setNewTabId(tabId);
+S:\waveterm\frontend\app\tab\tabbar.tsx                  539         setNewTabIdDebounced(null);
+S:\waveterm\frontend\app\tab\tabbar.tsx                  652                                     isNew={tabId === newTabId}
+S:\waveterm\frontend\app\tab\vtabbar.tsx                 200     const [isNewTabHovered, setIsNewTabHovered] = useState(false);
+S:\waveterm\frontend\app\tab\vtabbar.tsx                 370                                 !(isLast && isNewTabHovered)
+S:\waveterm\frontend\app\tab\vtabbar.tsx                 426                 onMouseEnter={() => setIsNewTabHovered(true)}
+S:\waveterm\frontend\app\tab\vtabbar.tsx                 427                 onMouseLeave={() => setIsNewTabHovered(false)}
+S:\waveterm\frontend\preview\mock\tabbar-mock.tsx        119                 const newTabId = `preview-tab-${crypto.randomUUID()}`;
+S:\waveterm\frontend\preview\mock\tabbar-mock.tsx        120                 e.mockSetWaveObj(`tab:${newTabId}`, {
+S:\waveterm\frontend\preview\mock\tabbar-mock.tsx        122                     oid: newTabId,
+S:\waveterm\frontend\preview\mock\tabbar-mock.tsx        131                     tabids: [...(ws.tabids ?? []), newTabId],
+S:\waveterm\frontend\preview\mock\tabbar-mock.tsx        133                 globalStore.set(e.atoms.staticTabId as any, newTabId);
+S:\waveterm\frontend\preview\mock\tabbar-mock.tsx        139                 const newTabIds = (ws.tabids ?? []).filter((id) => id !== tabId);
+S:\waveterm\frontend\preview\mock\tabbar-mock.tsx        140                 if (newTabIds.length === 0) {
+S:\waveterm\frontend\preview\mock\tabbar-mock.tsx        143                 e.mockSetWaveObj(`workspace:${TabBarMockWorkspaceId}`, { ...ws, tabids: newTabIds });
+S:\waveterm\frontend\preview\mock\tabbar-mock.tsx        145                     globalStore.set(e.atoms.staticTabId as any, newTabIds[0]);
+S:\waveterm\frontend\types\gotypes.d.ts                   61         newtab?: number;
+
+
+
+--- PATTERN: newtabbutton ---
+
+
+--- PATTERN: createtab ---
+
+Path                                                      LineNumber Line
+----                                                      ---------- ----
+S:\waveterm\frontend\app\store\global.ts                         660 function createTab() {
+S:\waveterm\frontend\app\store\global.ts                         661     getApi().createTab();
+S:\waveterm\frontend\app\store\global.ts                         681     createTab,
+S:\waveterm\frontend\app\store\keymodel.ts                        11     createTab,
+S:\waveterm\frontend\app\store\keymodel.ts                       537         createTab();
+S:\waveterm\frontend\app\store\services.ts                       172     CreateTab(workspaceId: string, tabName: string, activateTab: boolean): Promise<string> {
+S:\waveterm\frontend\app\store\services.ts                       173         return callBackendService(this?.waveEnv, "workspace", "CreateTab", Array.from(arguments))
+S:\waveterm\frontend\app\tab\tabbar.tsx                          534         env.electron.createTab();
+S:\waveterm\frontend\app\tab\tabbarenv.ts                          8         createTab: WaveEnv["electron"]["createTab"];
+S:\waveterm\frontend\app\tab\vtabbar.tsx                         425                 onClick={() => env.electron.createTab()}
+S:\waveterm\frontend\app\tab\vtabbarenv.ts                         8         createTab: WaveEnv["electron"]["createTab"];
+S:\waveterm\frontend\preview\mock\preview-electron-api.ts         42     createTab: () => {},
+S:\waveterm\frontend\preview\mock\tabbar-mock.tsx                116             createTab: () => {
+S:\waveterm\frontend\types\custom.d.ts                           118         createTab: () => void; // create-tab
+S:\waveterm\emain\emain-window.ts                                132           op: "createtab";
+S:\waveterm\emain\emain-window.ts                                524     async queueCreateTab() {
+S:\waveterm\emain\emain-window.ts                                525         await this._queueActionInternal({ op: "createtab" });
+S:\waveterm\emain\emain-window.ts                                564                     case "createtab":
+S:\waveterm\emain\emain-window.ts                                565                         tabId = await WorkspaceService.CreateTab(this.workspaceId, null, true);
+S:\waveterm\emain\emain-window.ts                                750         await ww.queueCreateTab();
+S:\waveterm\emain\preload.ts                                      54     createTab: () => ipcRenderer.send("create-tab"),
+
+
+
+--- PATTERN: addtabbutton ---
+
+
+--- PATTERN: createtabcommand ---
+
+
+--- PATTERN: createblockcommand ---
+
+Path                                            LineNumber Line
+----                                            ---------- ----
+S:\waveterm\frontend\app\store\wshclientapi.ts         184     CreateBlockCommand(client: WshClient, data: CommandCreateBlockData, opts?: RpcOpts): Promise<ORef> {
+S:\waveterm\frontend\app\view\term\term-wsh.tsx         34             const oref = await RpcApi.CreateBlockCommand(this, {
+
+
+
+--- PATTERN: createBlockNewTab ---
+
+
+--- PATTERN: tabbar ---
+
+Path                                                         LineNumber Line
+----                                                         ---------- ----
+S:\waveterm\frontend\app\tab\tabbar-model.ts                          4 export class TabBarModel {
+S:\waveterm\frontend\app\tab\tabbar-model.ts                          5     private static instance: TabBarModel | null = null;
+S:\waveterm\frontend\app\tab\tabbar-model.ts                          9     static getInstance(): TabBarModel {
+S:\waveterm\frontend\app\tab\tabbar-model.ts                         10         if (!TabBarModel.instance) {
+S:\waveterm\frontend\app\tab\tabbar-model.ts                         11             TabBarModel.instance = new TabBarModel();
+S:\waveterm\frontend\app\tab\tabbar-model.ts                         13         return TabBarModel.instance;
+S:\waveterm\frontend\app\tab\tabbar.tsx                              16 import "./tabbar.scss";
+S:\waveterm\frontend\app\tab\tabbar.tsx                              17 import { TabBarEnv } from "./tabbarenv";
+S:\waveterm\frontend\app\tab\tabbar.tsx                              43 interface TabBarProps {
+S:\waveterm\frontend\app\tab\tabbar.tsx                              49     const env = useWaveEnv<TabBarEnv>();
+S:\waveterm\frontend\app\tab\tabbar.tsx                              97 const TabBar = memo(({ workspace, noTabs }: TabBarProps) => {
+S:\waveterm\frontend\app\tab\tabbar.tsx                              98     const env = useWaveEnv<TabBarEnv>();
+S:\waveterm\frontend\app\tab\tabbar.tsx                             105     const tabbarWrapperRef = useRef<HTMLDivElement>(null);
+S:\waveterm\frontend\app\tab\tabbar.tsx                             106     const tabBarRef = useRef<HTMLDivElement>(null);
+S:\waveterm\frontend\app\tab\tabbar.tsx                             177         const tabBar = tabBarRef.current;
+S:\waveterm\frontend\app\tab\tabbar.tsx                             178         if (tabBar === null) return;
+S:\waveterm\frontend\app\tab\tabbar.tsx                             186         const tabbarWrapperWidth = tabbarWrapperRef.current.getBoundingClientRect().width;
+S:\waveterm\frontend\app\tab\tabbar.tsx                             202         const spaceForTabs = tabbarWrapperWidth - nonTabElementsWidth;
+S:\waveterm\frontend\app\tab\tabbar.tsx                             241             osInstanceRef.current = OverlayScrollbars(tabBarRef.current, { ...(OSOptions as any) });
+S:\waveterm\frontend\app\tab\tabbar.tsx                             344         let tabBarRectWidth = tabBarRef.current.getBoundingClientRect().width;
+S:\waveterm\frontend\app\tab\tabbar.tsx                             346         const tabBarRectLeftOffset = tabBarRef.current.getBoundingClientRect().left;
+S:\waveterm\frontend\app\tab\tabbar.tsx                             347         const incrementDecrement = tabBarRectLeftOffset * 0.05;
+S:\waveterm\frontend\app\tab\tabbar.tsx                             357             if (event.clientX <= tabBarRectLeftOffset) {
+S:\waveterm\frontend\app\tab\tabbar.tsx                             363             } else if (event.clientX >= tabBarRectWidth + tabBarRectLeftOffset) {
+S:\waveterm\frontend\app\tab\tabbar.tsx                             385         if (tabBarRef.current) {
+S:\waveterm\frontend\app\tab\tabbar.tsx                             388             if (totalDefaultTabWidth < tabBarRectWidth) {
+S:\waveterm\frontend\app\tab\tabbar.tsx                             390                 tabBarRectWidth = totalDefaultTabWidth;
+S:\waveterm\frontend\app\tab\tabbar.tsx                             393                 tabBarRectWidth = tabsWrapperRef.current.scrollWidth;
+S:\waveterm\frontend\app\tab\tabbar.tsx                             397             const maxRight = tabBarRectWidth - tabWidth;
+S:\waveterm\frontend\app\tab\tabbar.tsx                             600         <div ref={tabbarWrapperRef} className="tab-bar-wrapper">
+S:\waveterm\frontend\app\tab\tabbar.tsx                             626             <div className="tab-bar" ref={tabBarRef} data-overlayscrollbars-initialize>
+S:\waveterm\frontend\app\tab\tabbar.tsx                             679 export { TabBar, WaveAIButton };
+S:\waveterm\frontend\app\tab\tabbarenv.ts                             6 export type TabBarEnv = WaveEnvSubset<{
+S:\waveterm\frontend\app\tab\tabbarenv.ts                            31     getSettingsKeyAtom: SettingsKeyAtomFnType<"app:hideaibutton" | "app:tabbar" | "tab:confirmclose" | "window:showmenubar">;
+S:\waveterm\frontend\app\tab\tabcontextmenu.ts                       20 export function buildTabBarContextMenu(env: TabEnv): ContextMenuItem[] {
+S:\waveterm\frontend\app\tab\tabcontextmenu.ts                       21     const currentTabBar = globalStore.get(env.getSettingsKeyAtom("app:tabbar")) ?? "top";
+S:\waveterm\frontend\app\tab\tabcontextmenu.ts                       22     const tabBarSubmenu: ContextMenuItem[] = [
+S:\waveterm\frontend\app\tab\tabcontextmenu.ts                       26             checked: currentTabBar === "top",
+S:\waveterm\frontend\app\tab\tabcontextmenu.ts                       27             click: () => fireAndForget(() => env.rpc.SetConfigCommand(TabRpcClient, { "app:tabbar": "top" })),
+S:\waveterm\frontend\app\tab\tabcontextmenu.ts                       32             checked: currentTabBar === "left",
+S:\waveterm\frontend\app\tab\tabcontextmenu.ts                       33             click: () => fireAndForget(() => env.rpc.SetConfigCommand(TabRpcClient, { "app:tabbar": "left" })),
+S:\waveterm\frontend\app\tab\tabcontextmenu.ts                       36     return [{ label: "Tab Bar Position", type: "submenu", submenu: tabBarSubmenu }];
+S:\waveterm\frontend\app\tab\tabcontextmenu.ts                      117     menu.push(...buildTabBarContextMenu(env), { type: "separator" });
+S:\waveterm\frontend\app\tab\vtabbar.tsx                             15 import { buildTabBarContextMenu, buildTabContextMenu } from "./tabcontextmenu";
+S:\waveterm\frontend\app\tab\vtabbar.tsx                             18 import { VTabBarEnv } from "./vtabbarenv";
+S:\waveterm\frontend\app\tab\vtabbar.tsx                             22 const VTabBarAIButton = memo(() => {
+S:\waveterm\frontend\app\tab\vtabbar.tsx                             23     const env = useWaveEnv<VTabBarEnv>();
+S:\waveterm\frontend\app\tab\vtabbar.tsx                             49 VTabBarAIButton.displayName = "VTabBarAIButton";
+S:\waveterm\frontend\app\tab\vtabbar.tsx                             52     const env = useWaveEnv<VTabBarEnv>();
+S:\waveterm\frontend\app\tab\vtabbar.tsx                             71                 <VTabBarAIButton />
+S:\waveterm\frontend\app\tab\vtabbar.tsx                             82 interface VTabBarProps {
+S:\waveterm\frontend\app\tab\vtabbar.tsx                            121     const env = useWaveEnv<VTabBarEnv>();
+S:\waveterm\frontend\app\tab\vtabbar.tsx                            187 export function VTabBar({ workspace, className }: VTabBarProps) {
+S:\waveterm\frontend\app\tab\vtabbar.tsx                            188     const env = useWaveEnv<VTabBarEnv>();
+S:\waveterm\frontend\app\tab\vtabbar.tsx                            318     const handleTabBarContextMenu = useCallback(
+S:\waveterm\frontend\app\tab\vtabbar.tsx                            321             const menu = buildTabBarContextMenu(env);
+S:\waveterm\frontend\app\tab\vtabbar.tsx                            331             onContextMenu={handleTabBarContextMenu}
+S:\waveterm\frontend\app\tab\vtabbarenv.ts                            6 export type VTabBarEnv = WaveEnvSubset<{
+S:\waveterm\frontend\app\tab\vtabbarenv.ts                           37     getSettingsKeyAtom: SettingsKeyAtomFnType<"tab:confirmclose" | "app:tabbar" | "app:hideaibutton">;
+S:\waveterm\frontend\app\workspace\workspace-layout-model.ts         24 const VTabBar_DefaultWidth = 220;
+S:\waveterm\frontend\app\workspace\workspace-layout-model.ts         25 const VTabBar_MinWidth = 110;
+S:\waveterm\frontend\app\workspace\workspace-layout-model.ts         26 const VTabBar_MaxWidth = 280;
+S:\waveterm\frontend\app\workspace\workspace-layout-model.ts         29     return Math.max(VTabBar_MinWidth, Math.min(w, VTabBar_MaxWidth));
+S:\waveterm\frontend\app\workspace\workspace-layout-model.ts         72         this.vtabWidth = VTabBar_DefaultWidth;
+S:\waveterm\frontend\app\workspace\workspace-layout-model.ts        107                     meta: { "layout:vtabbarwidth": width },
+S:\waveterm\frontend\app\workspace\workspace-layout-model.ts        110                 console.warn("Failed to persist vtabbar width:", e);
+S:\waveterm\frontend\app\workspace\workspace-layout-model.ts        140     private getVTabBarWidthAtom(): jotai.Atom<number> {
+S:\waveterm\frontend\app\workspace\workspace-layout-model.ts        141         return getOrefMetaKeyAtom(WOS.makeORef("workspace", this.getWorkspaceId()), "layout:vtabbarwidth");
+S:\waveterm\frontend\app\workspace\workspace-layout-model.ts        148             const savedVTabWidth = globalStore.get(this.getVTabBarWidthAtom());
+S:\waveterm\frontend\app\workspace\workspace-layout-model.ts        159             const tabBarPosition = globalStore.get(getSettingsKeyAtom("app:tabbar")) ?? "top";
+S:\waveterm\frontend\app\workspace\workspace-layout-model.ts        160             const showLeftTabBar = tabBarPosition === "left" && !isBuilderWindow();
+S:\waveterm\frontend\app\workspace\workspace-layout-model.ts        161             this.vtabVisible = showLeftTabBar;
+S:\waveterm\frontend\app\workspace\workspace-layout-model.ts        277         const savedVTabWidth = globalStore.get(this.getVTabBarWidthAtom());
+S:\waveterm\frontend\app\workspace\workspace-layout-model.ts        292         showLeftTabBar?: boolean
+S:\waveterm\frontend\app\workspace\workspace-layout-model.ts        301         this.vtabVisible = showLeftTabBar ?? false;
+S:\waveterm\frontend\app\workspace\workspace-layout-model.ts        363     getLeftGroupInitialPercentage(windowWidth: number, showLeftTabBar: boolean): number {
+S:\waveterm\frontend\app\workspace\workspace-layout-model.ts        364         const vtabW = showLeftTabBar && !isBuilderWindow() ? this.getResolvedVTabWidth() : 0;
+S:\waveterm\frontend\app\workspace\workspace-layout-model.ts        369     getInnerVTabInitialPercentage(windowWidth: number, showLeftTabBar: boolean): number {
+S:\waveterm\frontend\app\workspace\workspace-layout-model.ts        370         if (!showLeftTabBar || isBuilderWindow()) return 0;
+S:\waveterm\frontend\app\workspace\workspace-layout-model.ts        378     getInnerAIPanelInitialPercentage(windowWidth: number, showLeftTabBar: boolean): number {
+S:\waveterm\frontend\app\workspace\workspace-layout-model.ts        379         const vtabW = showLeftTabBar && !isBuilderWindow() ? this.getResolvedVTabWidth() : 0;
+S:\waveterm\frontend\app\workspace\workspace-layout-model.ts        429     setShowLeftTabBar(showLeftTabBar: boolean): void {
+S:\waveterm\frontend\app\workspace\workspace-layout-model.ts        430         if (this.vtabVisible === showLeftTabBar) return;
+S:\waveterm\frontend\app\workspace\workspace-layout-model.ts        431         this.vtabVisible = showLeftTabBar;
+S:\waveterm\frontend\app\workspace\workspace.tsx                      8 import { TabBar } from "@/app/tab/tabbar";
+S:\waveterm\frontend\app\workspace\workspace.tsx                     10 import { VTabBar } from "@/app/tab/vtabbar";
+S:\waveterm\frontend\app\workspace\workspace.tsx                     25 const MacOSTabBarSpacer = memo(() => {
+S:\waveterm\frontend\app\workspace\workspace.tsx                     40 MacOSTabBarSpacer.displayName = "MacOSTabBarSpacer";
+S:\waveterm\frontend\app\workspace\workspace.tsx                     46     const tabBarPosition = useAtomValue(getSettingsKeyAtom("app:tabbar")) ?? "top";
+S:\waveterm\frontend\app\workspace\workspace.tsx                     47     const showLeftTabBar = tabBarPosition === "left";
+S:\waveterm\frontend\app\workspace\workspace.tsx                     51     const leftGroupInitialPct = workspaceLayoutModel.getLeftGroupInitialPercentage(windowWidth, showLeftTabBar);
+S:\waveterm\frontend\app\workspace\workspace.tsx                     52     const innerVTabInitialPct = workspaceLayoutModel.getInnerVTabInitialPercentage(windowWidth, showLeftTabBar);
+S:\waveterm\frontend\app\workspace\workspace.tsx                     53     const innerAIPanelInitialPct = workspaceLayoutModel.getInnerAIPanelInitialPercentage(windowWidth, showLeftTabBar);
+S:\waveterm\frontend\app\workspace\workspace.tsx                     62     // showLeftTabBar is passed as a seed value only; subsequent changes are handled by setShowLeftTabBar below.
+S:\waveterm\frontend\app\workspace\workspace.tsx                     63     // Do NOT add showLeftTabBar as a dep here — re-registering refs on config changes would redundantly re-run commitLayouts.
+S:\waveterm\frontend\app\workspace\workspace.tsx                     80                 showLeftTabBar
+S:\waveterm\frontend\app\workspace\workspace.tsx                     96         workspaceLayoutModel.setShowLeftTabBar(showLeftTabBar);
+S:\waveterm\frontend\app\workspace\workspace.tsx                     97     }, [showLeftTabBar]);
+S:\waveterm\frontend\app\workspace\workspace.tsx                    105     const innerHandleVisible = showLeftTabBar && aiPanelVisible;
+S:\waveterm\frontend\app\workspace\workspace.tsx                    107     const outerHandleVisible = showLeftTabBar || aiPanelVisible;
+S:\waveterm\frontend\app\workspace\workspace.tsx                    112             {!(showLeftTabBar && isMacOS()) && <TabBar key={ws.oid} workspace={ws} noTabs={showLeftTabBar} />}
+S:\waveterm\frontend\app\workspace\workspace.tsx                    113             {showLeftTabBar && isMacOS() && <MacOSTabBarSpacer />}
+S:\waveterm\frontend\app\workspace\workspace.tsx                    135                                         {showLeftTabBar && <VTabBar workspace={ws} />}
+S:\waveterm\frontend\app\workspace\workspace.tsx                    150                                         {tabId !== "" && <AIPanel roundTopLeft={showLeftTabBar} />}
+S:\waveterm\frontend\app\workspace\workspace.tsx                    161                                     <TabContent key={tabId} tabId={tabId} noTopPadding={showLeftTabBar && isMacOS()} />
+S:\waveterm\frontend\preview\mock\tabbar-mock.tsx                    36     for (const tab of TabBarMockTabs) {
+S:\waveterm\frontend\preview\mock\tabbar-mock.tsx                    44 export const TabBarMockWorkspaceId = "preview-workspace-1";
+S:\waveterm\frontend\preview\mock\tabbar-mock.tsx                    46 export const TabBarMockTabs: PreviewTabEntry[] = [
+S:\waveterm\frontend\preview\mock\tabbar-mock.tsx                    83         oid: TabBarMockWorkspaceId,
+S:\waveterm\frontend\preview\mock\tabbar-mock.tsx                    92 export function makeTabBarMockEnv(
+S:\waveterm\frontend\preview\mock\tabbar-mock.tsx                    97     const initialTabIds = TabBarMockTabs.map((t) => t.tabId);
+S:\waveterm\frontend\preview\mock\tabbar-mock.tsx                    99         [`workspace:${TabBarMockWorkspaceId}`]: makeMockWorkspace(initialTabIds),
+S:\waveterm\frontend\preview\mock\tabbar-mock.tsx                   101     for (const tab of TabBarMockTabs) {
+S:\waveterm\frontend\preview\mock\tabbar-mock.tsx                   105         tabId: TabBarMockTabs[1].tabId,
+S:\waveterm\frontend\preview\mock\tabbar-mock.tsx                   109             workspaceId: atom(TabBarMockWorkspaceId),
+S:\waveterm\frontend\preview\mock\tabbar-mock.tsx                   110             staticTabId: atom(TabBarMockTabs[1].tabId),
+S:\waveterm\frontend\preview\mock\tabbar-mock.tsx                   128                 const ws = globalStore.get(e.wos.getWaveObjectAtom<Workspace>(`workspace:${TabBarMockWorkspaceId}`));
+S:\waveterm\frontend\preview\mock\tabbar-mock.tsx                   129                 e.mockSetWaveObj(`workspace:${TabBarMockWorkspaceId}`, {
+S:\waveterm\frontend\preview\mock\tabbar-mock.tsx                   138                 const ws = globalStore.get(e.wos.getWaveObjectAtom<Workspace>(`workspace:${TabBarMockWorkspaceId}`));
+S:\waveterm\frontend\preview\mock\tabbar-mock.tsx                   143                 e.mockSetWaveObj(`workspace:${TabBarMockWorkspaceId}`, { ...ws, tabids: newTabIds });
+S:\waveterm\frontend\preview\mock\tabbar-mock.tsx                   163 type TabBarMockEnvProviderProps = {
+S:\waveterm\frontend\preview\mock\tabbar-mock.tsx                   167 export function TabBarMockEnvProvider({ children }: TabBarMockEnvProviderProps) {
+S:\waveterm\frontend\preview\mock\tabbar-mock.tsx                   170     const tabEnv = useMemo(() => makeTabBarMockEnv(baseEnv, envRef, PlatformMacOS), []);
+S:\waveterm\frontend\preview\mock\tabbar-mock.tsx                   173 TabBarMockEnvProvider.displayName = "TabBarMockEnvProvider";
+S:\waveterm\frontend\preview\previews\tab.preview.tsx                67     // The real tabbar imperatively sets opacity: 1 and transform after calculating
+S:\waveterm\frontend\preview\previews\tabbar.preview.tsx              5 import { TabBar } from "@/app/tab/tabbar";
+S:\waveterm\frontend\preview\previews\tabbar.preview.tsx              6 import { TabBarEnv } from "@/app/tab/tabbarenv";
+S:\waveterm\frontend\preview\previews\tabbar.preview.tsx              8 import { makeTabBarMockEnv, TabBarMockWorkspaceId } from "@/preview/mock/tabbar-mock";
+S:\waveterm\frontend\preview\previews\tabbar.preview.tsx             19 export function TabBarPreview() {
+S:\waveterm\frontend\preview\previews\tabbar.preview.tsx             24     const tabEnv = useMemo(() => makeTabBarMockEnv(baseEnv, envRef, platform), [platform]);
+S:\waveterm\frontend\preview\previews\tabbar.preview.tsx             28             <TabBarPreviewInner platform={platform} setPlatform={setPlatform} />
+S:\waveterm\frontend\preview\previews\tabbar.preview.tsx             33 type TabBarPreviewInnerProps = {
+S:\waveterm\frontend\preview\previews\tabbar.preview.tsx             38 function TabBarPreviewInner({ platform, setPlatform }: TabBarPreviewInnerProps) {
+S:\waveterm\frontend\preview\previews\tabbar.preview.tsx             39     const env = useWaveEnv<TabBarEnv>();
+S:\waveterm\frontend\preview\previews\tabbar.preview.tsx             48     const workspace = useAtomValue(env.wos.getWaveObjectAtom<Workspace>(`workspace:${TabBarMockWorkspaceId}`));
+S:\waveterm\frontend\preview\previews\tabbar.preview.tsx            152                 {workspace != null && <TabBar key={platform} workspace={workspace} />}
+S:\waveterm\frontend\preview\previews\tabbar.preview.tsx            161 TabBarPreviewInner.displayName = "TabBarPreviewInner";
+S:\waveterm\frontend\preview\previews\vtabbar.preview.tsx             5 import { VTabBar } from "@/app/tab/vtabbar";
+S:\waveterm\frontend\preview\previews\vtabbar.preview.tsx             6 import { VTabBarEnv } from "@/app/tab/vtabbarenv";
+S:\waveterm\frontend\preview\previews\vtabbar.preview.tsx             9 import { makeTabBarMockEnv, TabBarMockWorkspaceId } from "@/preview/mock/tabbar-mock";
+S:\waveterm\frontend\preview\previews\vtabbar.preview.tsx            14 export function VTabBarPreview() {
+S:\waveterm\frontend\preview\previews\vtabbar.preview.tsx            19     const tabEnv = useMemo(() => makeTabBarMockEnv(baseEnv, envRef, platform), [platform]);
+S:\waveterm\frontend\preview\previews\vtabbar.preview.tsx            23             <VTabBarPreviewInner platform={platform} setPlatform={setPlatform} />
+S:\waveterm\frontend\preview\previews\vtabbar.preview.tsx            28 type VTabBarPreviewInnerProps = {
+S:\waveterm\frontend\preview\previews\vtabbar.preview.tsx            33 function VTabBarPreviewInner({ platform, setPlatform }: VTabBarPreviewInnerProps) {
+S:\waveterm\frontend\preview\previews\vtabbar.preview.tsx            34     const env = useWaveEnv<VTabBarEnv>();
+S:\waveterm\frontend\preview\previews\vtabbar.preview.tsx            41     const workspace = useAtomValue(env.wos.getWaveObjectAtom<Workspace>(`workspace:${TabBarMockWorkspaceId}`));
+S:\waveterm\frontend\preview\previews\vtabbar.preview.tsx           122                     {workspace != null && <VTabBar key={platform} workspace={workspace} />}
+S:\waveterm\frontend\preview\previews\vtabbar.preview.tsx           128 VTabBarPreviewInner.displayName = "VTabBarPreviewInner";
+S:\waveterm\frontend\types\gotypes.d.ts                            1165         "layout:vtabbarwidth"?: number;
+S:\waveterm\frontend\types\gotypes.d.ts                            1390         "app:tabbar"?: string;
+
+
+
+--- PATTERN: topbar ---
+
+
+--- PATTERN: addnew ---
+
+Path                                                         LineNumber Line
+----                                                         ---------- ----
+S:\waveterm\frontend\app\view\waveconfig\secretscontent.tsx         361                     onSubmit={() => model.addNewSecret()}
+S:\waveterm\frontend\app\view\waveconfig\waveconfig-model.ts        545     async addNewSecret() {
+
+
+
+--- PATTERN: quickadd ---
+
+
+--- PATTERN: openOrFocus ---
+
+
+--- PATTERN: launcherwidget ---
+
+
+--- PATTERN: tsunamibuilder ---
+
+
+--- PATTERN: tipswidget ---
+
+
+--- PATTERN: launchwidget ---
+
+
+--- PATTERN: nulblock ---
+
+
+--- PATTERN: emptyblock ---
+
+
+--- PATTERN: cpsplus ---
+
+
+--- PATTERN: addcmdbar ---
+
+
+--- PATTERN: plusclick ---
+

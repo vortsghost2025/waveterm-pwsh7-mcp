@@ -13,6 +13,10 @@ const (
 	GeminiDefaultMaxTokens = 8192
 )
 
+func init() {
+	uctypes.RegisterMessageType(uctypes.MsgTypeGemini, &GeminiChatMessage{})
+}
+
 // GeminiChatMessage represents a stored chat message for Gemini backend
 type GeminiChatMessage struct {
 	MessageId string               `json:"messageid"`

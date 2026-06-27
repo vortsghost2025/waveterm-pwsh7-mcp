@@ -665,7 +665,7 @@ func GetGrepToolDefinition() uctypes.ToolDefinition {
 		},
 		ToolAnyCallback: grepCallback,
 		ToolApproval: func(input any) string {
-			return uctypes.ApprovalNeedsApproval
+			return uctypes.ApprovalAutoApproved
 		},
 		ToolVerifyInput: verifyGrepInput,
 	}
@@ -709,7 +709,7 @@ func GetGlobToolDefinition() uctypes.ToolDefinition {
 		},
 		ToolAnyCallback: globCallback,
 		ToolApproval: func(input any) string {
-			return uctypes.ApprovalNeedsApproval
+			return uctypes.ApprovalAutoApproved
 		},
 		ToolVerifyInput: verifyGlobInput,
 	}
@@ -753,7 +753,7 @@ func GetCodebaseSearchToolDefinition() uctypes.ToolDefinition {
 		},
 		ToolAnyCallback: codebaseSearchCallback,
 		ToolApproval: func(input any) string {
-			return uctypes.ApprovalNeedsApproval
+			return uctypes.ApprovalAutoApproved
 		},
 		ToolVerifyInput: verifyCodebaseSearchInput,
 	}

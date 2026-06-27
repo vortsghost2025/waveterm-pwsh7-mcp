@@ -134,21 +134,23 @@ func buildAnthropicHTTPRequest(ctx context.Context, msgs []anthropicInputMessage
 		reqBody.Tools = append(reqBody.Tools, &anthropicWebSearchTool{Type: "web_search_20250305", Name: "web_search"})
 	}
 
+	var toolNames []string
+	for _, tool := range chatOpts.Tools {
+		toolNames = append(toolNames, tool.Name)
+	}
+	for _, tool := range chatOpts.TabTools {
+		toolNames = append(toolNames, tool.Name)
+	}
+	if chatOpts.AllowNativeWebSearch {
+		toolNames = append(toolNames, "web_search[server]")
+	}
+	log.Printf("[AIUSECHAT ANTHROPIC TOOLS] chatId=%s tools=%s", chatOpts.ChatId, strings.Join(toolNames, ","))
+
 	// Enable extended thinking based on level
 	reqBody.Thinking = makeThinkingOpts(opts.ThinkingLevel, maxTokens)
 
 	// pretty print json of anthropicMsgs
 	if jsonStr, err := utilfn.MarshalIndentNoHTMLString(convertedMsgs, "", "  "); err == nil {
-		var toolNames []string
-		for _, tool := range chatOpts.Tools {
-			toolNames = append(toolNames, tool.Name)
-		}
-		for _, tool := range chatOpts.TabTools {
-			toolNames = append(toolNames, tool.Name)
-		}
-		if chatOpts.AllowNativeWebSearch {
-			toolNames = append(toolNames, "web_search[server]")
-		}
 		logutil.DevPrintf("tools: %s\n", strings.Join(toolNames, ", "))
 		logutil.DevPrintf("anthropicMsgs JSON:\n%s", jsonStr)
 		logutil.DevPrintf("has-api-key: %v\n", opts.APIToken != "")

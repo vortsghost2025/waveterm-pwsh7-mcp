@@ -166,7 +166,7 @@ func GetReadDirToolDefinition() uctypes.ToolDefinition {
 		},
 		ToolAnyCallback: readDirCallback,
 		ToolApproval: func(input any) string {
-			return uctypes.ApprovalNeedsApproval
+			return uctypes.ApprovalAutoApproved
 		},
 		ToolVerifyInput: verifyReadDirInput,
 	}

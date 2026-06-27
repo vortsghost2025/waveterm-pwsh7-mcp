@@ -14,6 +14,10 @@ import (
 
 // OpenAI Chat Completions API types (simplified)
 
+func init() {
+	uctypes.RegisterMessageType(uctypes.MsgTypeOpenAIChat, &StoredChatMessage{})
+}
+
 type ChatRequest struct {
 	Model               string               `json:"model"`
 	Messages            []ChatRequestMessage `json:"messages"`

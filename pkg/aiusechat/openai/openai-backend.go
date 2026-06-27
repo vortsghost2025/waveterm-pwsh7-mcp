@@ -44,6 +44,10 @@ func sanitizeHostnameInError(err error) error {
 
 // ---------- OpenAI wire types (subset) ----------
 
+func init() {
+	uctypes.RegisterMessageType(uctypes.MsgTypeOpenAI, &OpenAIChatMessage{})
+}
+
 type OpenAIChatMessage struct {
 	MessageId          string                         `json:"messageid"` // internal field for idempotency (cannot send to openai)
 	Message            *OpenAIMessage                 `json:"message,omitempty"`

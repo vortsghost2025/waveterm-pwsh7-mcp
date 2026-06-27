@@ -170,8 +170,8 @@ func TestGetRunInteractiveCommandToolDefinition(t *testing.T) {
 	if !ok {
 		t.Fatal("InputSchema.required is not []string")
 	}
-	if len(req) != 1 || req[0] != "command" {
-		t.Errorf("InputSchema.required: got %v, want [command]", req)
+	if len(req) != 2 || req[0] != "command" || req[1] != "timeout_ms" {
+		t.Errorf("InputSchema.required: got %v, want [command timeout_ms]", req)
 	}
 }
 
@@ -247,6 +247,118 @@ func TestGetTermListWidgetsToolDefinition(t *testing.T) {
 	}
 	if req, exists := schema["required"]; exists {
 		t.Errorf("InputSchema should not require view_type (it's optional), got %v", req)
+	}
+}
+
+func TestParseTermSendInputInput(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     any
+		wantID    string
+		wantText  string
+		wantEnter bool
+		wantErr   bool
+		errSubstr string
+	}{
+		{
+			name:      "rejects nil input",
+			input:     nil,
+			wantErr:   true,
+			errSubstr: "input is required",
+		},
+		{
+			name:      "rejects missing widget",
+			input:     map[string]any{"text": "ls"},
+			wantErr:   true,
+			errSubstr: "widget_id is required",
+		},
+		{
+			name:      "rejects missing text",
+			input:     map[string]any{"widget_id": "abc12345"},
+			wantErr:   true,
+			errSubstr: "text is required",
+		},
+		{
+			name:      "accepts basic input",
+			input:     map[string]any{"widget_id": "abc12345", "text": "ls"},
+			wantID:    "abc12345",
+			wantText:  "ls",
+			wantEnter: false,
+		},
+		{
+			name:      "accepts enter flag",
+			input:     map[string]any{"widget_id": "abc12345", "text": "go test ./...", "enter": true},
+			wantID:    "abc12345",
+			wantText:  "go test ./...",
+			wantEnter: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			params, err := parseTermSendInputInput(tc.input)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("expected error")
+				}
+				if tc.errSubstr != "" && !strings.Contains(err.Error(), tc.errSubstr) {
+					t.Fatalf("expected error containing %q, got %q", tc.errSubstr, err.Error())
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if params.WidgetId != tc.wantID {
+				t.Errorf("WidgetId: got %q, want %q", params.WidgetId, tc.wantID)
+			}
+			if params.Text != tc.wantText {
+				t.Errorf("Text: got %q, want %q", params.Text, tc.wantText)
+			}
+			if params.Enter != tc.wantEnter {
+				t.Errorf("Enter: got %v, want %v", params.Enter, tc.wantEnter)
+			}
+		})
+	}
+}
+
+func TestGetTermSendInputToolDefinition(t *testing.T) {
+	def := GetTermSendInputToolDefinition("test-tab-id")
+	if def.Name != "term_send_input" {
+		t.Errorf("Name: got %q, want term_send_input", def.Name)
+	}
+	if def.ToolLogName != "term:sendinput" {
+		t.Errorf("ToolLogName: got %q", def.ToolLogName)
+	}
+	if def.ToolAnyCallback == nil {
+		t.Error("ToolAnyCallback should not be nil")
+	}
+	if def.ToolApproval == nil {
+		t.Error("ToolApproval should not be nil")
+	}
+	if def.ToolCallDesc == nil {
+		t.Error("ToolCallDesc should not be nil")
+	}
+	schema := def.InputSchema
+	props, ok := schema["properties"].(map[string]any)
+	if !ok {
+		t.Fatal("InputSchema.properties is not a map")
+	}
+	if _, ok := props["widget_id"]; !ok {
+		t.Error("InputSchema.properties.widget_id missing")
+	}
+	if _, ok := props["text"]; !ok {
+		t.Error("InputSchema.properties.text missing")
+	}
+	if _, ok := props["enter"]; !ok {
+		t.Error("InputSchema.properties.enter missing")
+	}
+	req, ok := schema["required"].([]string)
+	if !ok {
+		t.Fatal("InputSchema.required is not []string")
+	}
+	if len(req) != 2 || req[0] != "widget_id" || req[1] != "text" {
+		t.Errorf("InputSchema.required: got %v, want [widget_id text]", req)
 	}
 }
 

@@ -21,7 +21,8 @@ var termScrollbackCmd = &cobra.Command{
 	Long: `Get the terminal scrollback from a terminal block.
 
 By default, retrieves all lines. You can specify line ranges or get the 
-output of the last command using the --lastcommand flag.`,
+output of the last command using the --lastcommand flag. If shell integration
+is unavailable, --lastcommand falls back to recent scrollback.`,
 	RunE:                  termScrollbackRun,
 	PreRunE:               preRunSetupRpcClient,
 	DisableFlagsInUseLine: true,

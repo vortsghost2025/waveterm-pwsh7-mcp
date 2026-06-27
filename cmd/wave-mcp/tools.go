@@ -262,6 +262,57 @@ func defineTools() []ToolDefinition {
 				"required": []string{"query"},
 			},
 		},
+		{
+			Name:        "term_get_scrollback",
+			Description: "Read scrollback lines from a Wave terminal widget. Shells out to wsh termscrollback and strips ANSI escape sequences. Returns the last N lines of terminal output.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"widget_id": map[string]any{
+						"type":        "string",
+						"description": "The block/widget ID of the terminal (e.g. 'd84418c1')",
+					},
+					"count": map[string]any{
+						"type":        "integer",
+						"default":     200,
+						"description": "Number of lines to return (default 200, max 1000)",
+					},
+				},
+				"required": []string{"widget_id"},
+			},
+		},
+		{
+			Name:        "term_send_input",
+			Description: "Send text input to a Wave terminal widget as if the user typed it. Optionally appends a newline (Enter key). Use this for interactive commands or when term_run_command is busy.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"widget_id": map[string]any{
+						"type":        "string",
+						"description": "The 8-char block/widget ID of the terminal",
+					},
+					"text": map[string]any{
+						"type":        "string",
+						"description": "The text to send to the terminal",
+					},
+					"enter": map[string]any{
+						"type":        "boolean",
+						"default":     false,
+						"description": "Append a newline to simulate pressing Enter",
+					},
+				},
+				"required":             []string{"widget_id", "text"},
+				"additionalProperties": false,
+			},
+		},
+		{
+			Name:        "term_list_widgets",
+			Description: "List available terminal widgets in Wave. Returns widget IDs, view type, working directory, and shell state for each terminal block.",
+			InputSchema: map[string]any{
+				"type":       "object",
+				"properties": map[string]any{},
+			},
+		},
 	}
 }
 
@@ -291,6 +342,12 @@ func handleToolCall(name string, args map[string]any) ToolCallResult {
 		return callDeleteTextFile(args)
 	case "codebase_search":
 		return callCodebaseSearch(args)
+	case "term_get_scrollback":
+		return callTermGetScrollback(args)
+	case "term_send_input":
+		return callTermSendInput(args)
+	case "term_list_widgets":
+		return callTermListWidgets(args)
 	default:
 		return ToolCallResult{
 			IsError: true,

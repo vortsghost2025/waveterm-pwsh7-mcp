@@ -25,10 +25,32 @@ var allowlist = []AllowedCommand{
 	// Directory listing
 	{regexp.MustCompile(`^dir$`), "dir"},
 	{regexp.MustCompile(`^dir .+$`), "dir"},
+	{regexp.MustCompile(`^dir "[^"]+" /s /b$`), "dir recursive"},
 	{regexp.MustCompile(`^ls$`), "ls"},
 	{regexp.MustCompile(`^ls .+$`), "ls"},
 	{regexp.MustCompile(`^Get-ChildItem .*$`), "Get-ChildItem"},
 	{regexp.MustCompile(`^Get-Location$`), "Get-Location"},
+
+	// npx asar commands - generic regex
+	// In Go raw backtick literal, \\ = one literal backslash in regex,
+	// which matches one literal backslash in the command string.
+	// Matches quoted Windows paths like "C:\Users\seand\..."
+	{regexp.MustCompile(`^npx asar list "[A-Za-z]:\\[A-Za-z0-9_.\\ -]+"$`), "npx asar list"},
+	{regexp.MustCompile(`^npx asar extract "[A-Za-z]:\\[A-Za-z0-9_.\\ -]+" "[A-Za-z]:\\[A-Za-z0-9_.\\ -]+"$`), "npx asar extract"},
+	{regexp.MustCompile(`^npx asar pack "[A-Za-z]:\\[A-Za-z0-9_.\\ -]+" "[A-Za-z]:\\[A-Za-z0-9_.\\ -]+"$`), "npx asar pack"},
+
+	// Generic npm commands
+	{regexp.MustCompile(`^npm (?:install|run|start|test|list)(?: .*)?$`), "npm"},
+	{regexp.MustCompile(`^npm --version$`), "npm version"},
+	{regexp.MustCompile(`^npx --version$`), "npx version"},
+
+	// File manipulation commands (PowerShell / cmd)
+	{regexp.MustCompile(`^Set-Content .+$`), "Set-Content"},
+	{regexp.MustCompile(`^Out-File .+$`), "Out-File"},
+	{regexp.MustCompile(`^copy .+$`), "copy"},
+	{regexp.MustCompile(`^cp .+$`), "cp"},
+	{regexp.MustCompile(`^Move-Item .+$`), "Move-Item"},
+	{regexp.MustCompile(`^Rename-Item .+$`), "Rename-Item"},
 
 	// File reading
 	{regexp.MustCompile(`^cat .+$`), "cat"},
@@ -42,6 +64,7 @@ var allowlist = []AllowedCommand{
 	// Find / search
 	{regexp.MustCompile(`^find .+$`), "find"},
 	{regexp.MustCompile(`^grep .+$`), "grep"},
+	{regexp.MustCompile(`^grep -m [0-9]+ .+$`), "grep limited"},
 	{regexp.MustCompile(`^rg .+$`), "rg"},
 	{regexp.MustCompile(`^fd .+$`), "fd"},
 
@@ -72,14 +95,18 @@ var allowlist = []AllowedCommand{
 	{regexp.MustCompile(`^git config --list$`), "git config list"},
 	{regexp.MustCompile(`^git blame .*$`), "git blame"},
 
-	// Dev tool version checks
-	{regexp.MustCompile(`^go version$`), "go version"},
-	{regexp.MustCompile(`^go env .*$`), "go env"},
-	{regexp.MustCompile(`^go list .*$`), "go list"},
-	{regexp.MustCompile(`^go vet .*$`), "go vet"},
+	// Go toolchain (broad pattern: any go subcommand)
+	{regexp.MustCompile(`^go [a-z].*$`), "go subcommand"},
+	{regexp.MustCompile(`^go$`), "go"},
 	{regexp.MustCompile(`^node --version$`), "node version"},
 	{regexp.MustCompile(`^npm --version$`), "npm version"},
 	{regexp.MustCompile(`^npm list .*$`), "npm list"},
+	{regexp.MustCompile(`^npm install$`), "npm install"},
+	{regexp.MustCompile(`^npm install .+$`), "npm install"},
+	{regexp.MustCompile(`^npm run$`), "npm run"},
+	{regexp.MustCompile(`^npm run .+$`), "npm run"},
+	{regexp.MustCompile(`^npm start$`), "npm start"},
+	{regexp.MustCompile(`^npm test$`), "npm test"},
 	{regexp.MustCompile(`^npx --version$`), "npx version"},
 	{regexp.MustCompile(`^python --version$`), "python version"},
 	{regexp.MustCompile(`^python -m py_compile .+$`), "python compile check"},
@@ -87,6 +114,8 @@ var allowlist = []AllowedCommand{
 	{regexp.MustCompile(`^pip list .*$`), "pip list"},
 	{regexp.MustCompile(`^task --list$`), "task list"},
 	{regexp.MustCompile(`^task --list-all$`), "task list"},
+	{regexp.MustCompile(`^task$`), "task"},
+	{regexp.MustCompile(`^task .+$`), "task"},
 	{regexp.MustCompile(`^which .+$`), "which"},
 	{regexp.MustCompile(`^Get-Command .+$`), "Get-Command"},
 	{regexp.MustCompile(`^where .+$`), "where"},
@@ -98,8 +127,14 @@ var allowlist = []AllowedCommand{
 	{regexp.MustCompile(`^wsh version$`), "wsh version"},
 	{regexp.MustCompile(`^wsh getvar .+$`), "wsh getvar"},
 	{regexp.MustCompile(`^wsh blocks$`), "wsh blocks"},
+	{regexp.MustCompile(`^wsh blocks list$`), "wsh blocks list"},
+	{regexp.MustCompile(`^wsh blocks list .*$`), "wsh blocks list"},
 	{regexp.MustCompile(`^wsh status$`), "wsh status"},
 	{regexp.MustCompile(`^wsh chatstatus$`), "wsh chatstatus"},
+	{regexp.MustCompile(`^wsh input .+$`), "wsh input"},
+	{regexp.MustCompile(`^wsh ai .+$`), "wsh ai"},
+	{regexp.MustCompile(`^wsh termscrollback .*$`), "wsh termscrollback"},
+
 
 	// Disk usage (read-only)
 	{regexp.MustCompile(`^df .*$`), "df"},

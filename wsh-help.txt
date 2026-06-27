@@ -1,0 +1,46 @@
+wsh is a small utility that lets you do cool things with Wave Terminal, right from the command line
+
+Usage:
+  wsh [command]
+
+Available Commands:
+  ai             Append content to Wave AI sidebar prompt
+  badge          set or clear a block badge
+  blocks         Manage blocks
+  completion     Generate the autocompletion script for the specified shell
+  conn           manage Wave Terminal connections
+  deleteblock    delete a block
+  docker         manage Docker containers and images
+  edit           edit a file
+  editconfig     edit Wave configuration files
+  editor         edit a file (blocks until editor is closed)
+  file           manage files across local and remote systems
+  focusblock     focus a block in the current tab
+  getmeta        get metadata for an entity
+  getvar         get variable(s) from a block
+  help           Help about any command
+  input          send text input to a terminal widget
+  launch         launch a widget by its ID
+  notify         create a notification
+  run            run a command in a new block
+  secret         manage secrets
+  setbg          set background image or color for a tab
+  setconfig      set config
+  setmeta        set metadata for an entity
+  setvar         set variable(s) for a block
+  ssh            connect this terminal to a remote host
+  tabindicator   set or clear a tab indicator (deprecated: use 'wsh badge')
+  term           open a terminal in directory
+  termscrollback Get terminal scrollback from a terminal block
+  version        Print the version number of wsh
+  view           preview/edit a file or directory
+  wavepath       Get paths to various waveterm files and directories
+  web            web commands
+  workspace      Manage workspaces
+  wsl            connect this terminal to a local wsl connection
+
+Flags:
+  -b, --block string   for commands which require a block id
+  -h, --help           help for wsh
+
+Use "wsh [command] --help" for more information about a command.

@@ -51,6 +51,54 @@ func TestCheckCommandScopedAllowlist(t *testing.T) {
 			command: `Set-Location C:\Users\seand; npm run build`,
 			wantErr: true,
 		},
+		{
+			name:    "allows npm install",
+			command: `npm install`,
+		},
+		{
+			name:    "allows npm install with packages",
+			command: `npm install lodash express`,
+		},
+		{
+			name:    "allows npm run",
+			command: `npm run`,
+		},
+		{
+			name:    "allows npm run build",
+			command: `npm run build`,
+		},
+		{
+			name:    "allows npm run dev",
+			command: `npm run dev`,
+		},
+		{
+			name:    "allows npm start",
+			command: `npm start`,
+		},
+		{
+			name:    "allows npm test",
+			command: `npm test`,
+		},
+		{
+			name:    "allows task",
+			command: `task`,
+		},
+		{
+			name:    "allows task build",
+			command: `task build`,
+		},
+		{
+			name:    "allows task dev",
+			command: `task dev`,
+		},
+		{
+			name:    "allows task --list",
+			command: `task --list`,
+		},
+		{
+			name:    "allows wsh input",
+			command: `wsh input 8d4a72e2 "hello" --enter`,
+		},
 	}
 
 	for _, tc := range tests {

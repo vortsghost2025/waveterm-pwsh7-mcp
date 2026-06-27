@@ -52,7 +52,7 @@ func RunChatStep(
 		// Handle compaction summary messages
 		if csm, ok := genMsg.(*uctypes.CompactionSummaryMessage); ok {
 			messages = append(messages, ChatRequestMessage{
-				Role: "user",
+				Role:    "user",
 				Content: csm.Text,
 			})
 			continue
@@ -64,19 +64,48 @@ func RunChatStep(
 		messages = append(messages, *chatMsg.Message.clean())
 	}
 
-	req, err := buildChatHTTPRequest(ctx, messages, chatOpts)
-	if err != nil {
-		return nil, nil, nil, err
+	const maxRetries = 5
+	var resp *http.Response
+	var lastRetryBody string
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		req, err := buildChatHTTPRequest(ctx, messages, chatOpts)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+
+		client, err := aiutil.MakeHTTPClient(chatOpts.Config.ProxyURL)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		resp, err = client.Do(req)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("request failed: %w", err)
+		}
+
+		if resp.StatusCode == http.StatusBadGateway ||
+			resp.StatusCode == http.StatusServiceUnavailable ||
+			resp.StatusCode == http.StatusGatewayTimeout {
+			bodyBytes, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			lastRetryBody = string(bodyBytes)
+			log.Printf("openaichat: retryable server error (attempt %d/%d): status %d body=%s",
+				attempt+1, maxRetries, resp.StatusCode, lastRetryBody)
+			if attempt < maxRetries-1 {
+				backoff := time.Duration(2*(attempt+1)) * time.Second
+				select {
+				case <-time.After(backoff):
+					continue
+				case <-ctx.Done():
+					return nil, nil, nil, ctx.Err()
+				}
+			}
+			return nil, nil, nil, fmt.Errorf("API unavailable after %d retries (status %d): %s", maxRetries, resp.StatusCode, lastRetryBody)
+		}
+
+		break
 	}
 
-	client, err := aiutil.MakeHTTPClient(chatOpts.Config.ProxyURL)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("request failed: %w", err)
-	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
@@ -98,6 +127,19 @@ func RunChatStep(
 	}
 
 	return stopReason, []*StoredChatMessage{assistantMsg}, nil, nil
+}
+
+func extractPartialTextMessage(msgID string, text string) *StoredChatMessage {
+	if text == "" {
+		return nil
+	}
+	return &StoredChatMessage{
+		MessageId: msgID,
+		Message: ChatRequestMessage{
+			Role:    "assistant",
+			Content: text,
+		},
+	}
 }
 
 func processChatStream(
@@ -266,18 +308,4 @@ func processChatStream(
 	}
 
 	return stopReason, assistantMsg, nil
-}
-
-func extractPartialTextMessage(msgID string, text string) *StoredChatMessage {
-	if text == "" {
-		return nil
-	}
-
-	return &StoredChatMessage{
-		MessageId: msgID,
-		Message: ChatRequestMessage{
-			Role:    "assistant",
-			Content: text,
-		},
-	}
 }

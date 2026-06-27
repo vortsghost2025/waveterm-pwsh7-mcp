@@ -1,12 +1,14 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 package aiusechat
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,6 +19,11 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/wshrpc/wshclient"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
 	"github.com/wavetermdev/waveterm/pkg/wstore"
+)
+
+const (
+	AgentModelKey = "agent:model"
+	AgentModeKey  = "agent:mode"
 )
 
 type TermGetScrollbackToolInput struct {
@@ -214,6 +221,128 @@ func GetTermGetScrollbackToolDefinition(tabId string) uctypes.ToolDefinition {
 	}
 }
 
+// ---------- term_send_input ----------
+
+type TermSendInputToolInput struct {
+	WidgetId string `json:"widget_id"`
+	Text     string `json:"text"`
+	Enter    bool   `json:"enter,omitempty"`
+}
+
+type TermSendInputToolOutput struct {
+	Success bool `json:"success"`
+}
+
+func parseTermSendInputInput(input any) (*TermSendInputToolInput, error) {
+	result := &TermSendInputToolInput{}
+
+	if input == nil {
+		return nil, fmt.Errorf("input is required")
+	}
+
+	inputBytes, err := json.Marshal(input)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal input: %w", err)
+	}
+
+	if err := json.Unmarshal(inputBytes, result); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal input: %w", err)
+	}
+
+	if result.WidgetId == "" {
+		return nil, fmt.Errorf("widget_id is required")
+	}
+	if result.Text == "" {
+		return nil, fmt.Errorf("text is required")
+	}
+
+	return result, nil
+}
+
+func GetTermSendInputToolDefinition(tabId string) uctypes.ToolDefinition {
+	return uctypes.ToolDefinition{
+		Name:        "term_send_input",
+		DisplayName: "Send Input to Terminal",
+		Description: "Send text input to a terminal widget as if the user typed it. " +
+			`Set "enter": true to press Enter after the text. ` +
+			"Works on any terminal regardless of its state (idle, busy, or running a TUI app). " +
+			"Use this to interact with running programs, send commands to a shell, or type into TUI applications. " +
+			"For simple shell commands on idle terminals, prefer term_run_command instead. " +
+			"All tool calls are pre-approved.",
+		ToolLogName: "term:sendinput",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"widget_id": map[string]any{
+					"type":        "string",
+					"description": "8-character widget ID of the terminal widget",
+				},
+				"text": map[string]any{
+					"type":        "string",
+					"description": "Text to send to the terminal",
+				},
+				"enter": map[string]any{
+					"type":        "boolean",
+					"description": "If true, press Enter after the text. Default: false.",
+				},
+			},
+			"required":             []string{"widget_id", "text"},
+			"additionalProperties": false,
+		},
+		ToolCallDesc: func(input any, output any, toolUseData *uctypes.UIMessageDataToolUse) string {
+			parsed, err := parseTermSendInputInput(input)
+			if err != nil {
+				return fmt.Sprintf("error parsing input: %v", err)
+			}
+
+			textPreview := parsed.Text
+			if len(textPreview) > 50 {
+				textPreview = textPreview[:47] + "..."
+			}
+			if parsed.Enter {
+				return fmt.Sprintf("sending %q to terminal %s (enter)", textPreview, parsed.WidgetId)
+			}
+			return fmt.Sprintf("sending %q to terminal %s", textPreview, parsed.WidgetId)
+		},
+		ToolApproval: func(input any) string {
+			return uctypes.ApprovalAutoApproved
+		},
+		ToolAnyCallback: func(input any, toolUseData *uctypes.UIMessageDataToolUse) (any, error) {
+			parsed, err := parseTermSendInputInput(input)
+			if err != nil {
+				return nil, err
+			}
+
+			ctx, cancelFn := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancelFn()
+
+			fullBlockId, err := wcore.ResolveBlockIdFromPrefix(ctx, tabId, parsed.WidgetId)
+			if err != nil {
+				return nil, fmt.Errorf("failed to resolve widget %s: %w", parsed.WidgetId, err)
+			}
+
+			textToSend := parsed.Text
+			if parsed.Enter {
+				textToSend += "\r"
+			}
+
+			err = wshclient.ControllerInputCommand(
+				wshclient.GetBareRpcClient(),
+				wshrpc.CommandBlockInputData{
+					BlockId:     fullBlockId,
+					InputData64: base64.StdEncoding.EncodeToString([]byte(textToSend)),
+				},
+				nil,
+			)
+			if err != nil {
+				return nil, fmt.Errorf("failed to send input to terminal: %w", err)
+			}
+
+			return &TermSendInputToolOutput{Success: true}, nil
+		},
+	}
+}
+
 type TermCommandOutputToolInput struct {
 	WidgetId string `json:"widget_id"`
 }
@@ -369,7 +498,7 @@ func GetTermCommandOutputToolDefinition(tabId string) uctypes.ToolDefinition {
 	return uctypes.ToolDefinition{
 		Name:        "term_command_output",
 		DisplayName: "Get Last Command Output",
-		Description: "Retrieve output from the most recent command in a terminal widget. Requires shell integration to be enabled. Returns the command text, exit code, and up to 1000 lines of output.",
+		Description: "Retrieve output from the most recent command in a terminal widget. Uses shell integration for exact command boundaries when available, otherwise falls back to recent scrollback. Returns the command text, exit code, and up to 1000 lines of output.",
 		ToolLogName: "term:commandoutput",
 		InputSchema: map[string]any{
 			"type": "object",
@@ -395,20 +524,6 @@ func GetTermCommandOutputToolDefinition(tabId string) uctypes.ToolDefinition {
 				return nil, err
 			}
 
-			ctx, cancelFn := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancelFn()
-
-			fullBlockId, err := wcore.ResolveBlockIdFromPrefix(ctx, tabId, parsed.WidgetId)
-			if err != nil {
-				return nil, err
-			}
-
-			blockORef := waveobj.MakeORef(waveobj.OType_Block, fullBlockId)
-			rtInfo := wstore.GetRTInfo(blockORef)
-			if rtInfo == nil || !rtInfo.ShellIntegration {
-				return nil, fmt.Errorf("shell integration is not enabled for this terminal")
-			}
-
 			output, err := getTermScrollbackOutput(
 				tabId,
 				parsed.WidgetId,
@@ -420,6 +535,611 @@ func GetTermCommandOutputToolDefinition(tabId string) uctypes.ToolDefinition {
 				return nil, fmt.Errorf("failed to get command output: %w", err)
 			}
 			return output, nil
+		},
+	}
+}
+
+// ---------- term_spawn_agent ----------
+
+type TermSpawnAgentToolInput struct {
+	CLI         string `json:"cli"`
+	Model       string `json:"model"`
+	Mode        string `json:"mode"`
+	WorkingDir  string `json:"working_dir"`
+	ProjectFile string `json:"project_file"`
+}
+
+type TermSpawnAgentToolOutput struct {
+	WidgetId string `json:"widget_id"`
+	Status   string `json:"status"`
+	Model    string `json:"model"`
+	Mode     string `json:"mode"`
+	CLI      string `json:"cli"`
+}
+
+func parseTermSpawnAgentInput(input any) (*TermSpawnAgentToolInput, error) {
+	result := &TermSpawnAgentToolInput{CLI: "opencode"}
+	if input == nil {
+		return nil, fmt.Errorf("input is required")
+	}
+	inputBytes, err := json.Marshal(input)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal input: %w", err)
+	}
+	if err := json.Unmarshal(inputBytes, result); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal input: %w", err)
+	}
+	if result.Model == "" {
+		return nil, fmt.Errorf("model is required")
+	}
+	if result.CLI == "" {
+		result.CLI = "opencode"
+	}
+	if result.WorkingDir == "" {
+		return nil, fmt.Errorf("working_dir is required")
+	}
+	return result, nil
+}
+
+func GetTermSpawnAgentToolDefinition(tabId string) uctypes.ToolDefinition {
+	return uctypes.ToolDefinition{
+		Name:        "term_spawn_agent",
+		DisplayName: "Spawn Agent Terminal",
+		Description: "Spawn a new AI coding agent in a terminal widget. Creates a terminal block that auto-starts the agent CLI with the specified model. Returns a widget_id you can use with term_send_input, term_get_scrollback, and term_get_agent_status.",
+		ToolLogName: "term:spawnagent",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"model": map[string]any{
+					"type":        "string",
+					"description": "Model identifier, e.g. 'glm-5.1', 'nemotron-3-ultra'",
+				},
+				"cli": map[string]any{
+					"type":        "string",
+					"description": "Agent CLI to use: 'opencode' (default) or 'kilo'",
+				},
+				"mode": map[string]any{
+					"type":        "string",
+					"description": "Agent mode: 'plan' (architecture/research) or 'build' (implementation)",
+				},
+				"working_dir": map[string]any{
+					"type":        "string",
+					"description": "Working directory for the agent (project root)",
+				},
+				"project_file": map[string]any{
+					"type":        "string",
+					"description": "Optional path to AGENTS.md or project context file",
+				},
+			},
+			"required":             []string{"model", "working_dir"},
+			"additionalProperties": false,
+		},
+		ToolCallDesc: func(input any, output any, toolUseData *uctypes.UIMessageDataToolUse) string {
+			parsed, err := parseTermSpawnAgentInput(input)
+			if err != nil {
+				return fmt.Sprintf("error parsing input: %v", err)
+			}
+			return fmt.Sprintf("spawning %s agent (model=%s, mode=%s) in %s",
+				parsed.CLI, parsed.Model, parsed.Mode, parsed.WorkingDir)
+		},
+		ToolApproval: func(input any) string {
+			return uctypes.ApprovalAutoApproved
+		},
+		ToolAnyCallback: func(input any, toolUseData *uctypes.UIMessageDataToolUse) (any, error) {
+			parsed, err := parseTermSpawnAgentInput(input)
+			if err != nil {
+				return nil, err
+			}
+
+			modelFlag := "--model"
+			cmdArgs := []string{modelFlag, parsed.Model}
+			if parsed.ProjectFile != "" {
+				cmdArgs = append(cmdArgs, "--project", parsed.ProjectFile)
+			}
+
+			cmdEnv := map[string]string{}
+			if parsed.Mode != "" {
+				cmdEnv["AGENT_MODE"] = parsed.Mode
+			}
+
+			createMeta := map[string]any{
+				waveobj.MetaKey_View:          "term",
+				waveobj.MetaKey_CmdCwd:        parsed.WorkingDir,
+				waveobj.MetaKey_Controller:    "cmd",
+				waveobj.MetaKey_Cmd:           parsed.CLI,
+				waveobj.MetaKey_CmdArgs:       cmdArgs,
+				waveobj.MetaKey_CmdShell:      false,
+				waveobj.MetaKey_CmdRunOnStart: true,
+				waveobj.MetaKey_CmdRunOnce:    true,
+				waveobj.MetaKey_CmdEnv:        cmdEnv,
+				AgentModelKey:                 parsed.Model,
+				AgentModeKey:                  parsed.Mode,
+			}
+
+			createBlockData := wshrpc.CommandCreateBlockData{
+				TabId: tabId,
+				BlockDef: &waveobj.BlockDef{
+					Meta: createMeta,
+				},
+				Focused: true,
+			}
+
+			oref, err := wshclient.CreateBlockCommand(
+				wshclient.GetBareRpcClient(), createBlockData, nil,
+			)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create agent terminal: %w", err)
+			}
+
+			widgetId := oref.OID[:8]
+
+			return &TermSpawnAgentToolOutput{
+				WidgetId: widgetId,
+				Status:   "spawned",
+				Model:    parsed.Model,
+				Mode:     parsed.Mode,
+				CLI:      parsed.CLI,
+			}, nil
+		},
+	}
+}
+
+// ---------- term_get_agent_status ----------
+
+type TermGetAgentStatusToolInput struct {
+	WidgetId string `json:"widget_id"`
+}
+
+type TermGetAgentStatusToolOutput struct {
+	Status         string `json:"status"`
+	ContextPercent int    `json:"context_percent"`
+	Model          string `json:"model"`
+	Mode           string `json:"mode"`
+	ShellState     string `json:"shell_state"`
+	LastOutputSec  *int   `json:"last_output_sec"`
+}
+
+func parseTermGetAgentStatusInput(input any) (*TermGetAgentStatusToolInput, error) {
+	result := &TermGetAgentStatusToolInput{}
+	if input == nil {
+		return nil, fmt.Errorf("widget_id is required")
+	}
+	inputBytes, err := json.Marshal(input)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal input: %w", err)
+	}
+	if err := json.Unmarshal(inputBytes, result); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal input: %w", err)
+	}
+	if result.WidgetId == "" {
+		return nil, fmt.Errorf("widget_id is required")
+	}
+	return result, nil
+}
+
+func GetTermGetAgentStatusToolDefinition(tabId string) uctypes.ToolDefinition {
+	return uctypes.ToolDefinition{
+		Name:        "term_get_agent_status",
+		DisplayName: "Get Agent Status",
+		Description: "Check the status of a spawned agent terminal. Returns status (compacting|active|idle|error|unknown), context usage percentage, and agent metadata. Works by reading the terminal scrollback and runtime info.",
+		ToolLogName: "term:agentstatus",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"widget_id": map[string]any{
+					"type":        "string",
+					"description": "8-character widget ID of the agent terminal",
+				},
+			},
+			"required":             []string{"widget_id"},
+			"additionalProperties": false,
+		},
+		ToolCallDesc: func(input any, output any, toolUseData *uctypes.UIMessageDataToolUse) string {
+			parsed, err := parseTermGetAgentStatusInput(input)
+			if err != nil {
+				return fmt.Sprintf("error parsing input: %v", err)
+			}
+			return fmt.Sprintf("checking agent status for %s", parsed.WidgetId)
+		},
+		ToolAnyCallback: func(input any, toolUseData *uctypes.UIMessageDataToolUse) (any, error) {
+			parsed, err := parseTermGetAgentStatusInput(input)
+			if err != nil {
+				return nil, err
+			}
+
+			ctx, cancelFn := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancelFn()
+
+			fullBlockId, err := wcore.ResolveBlockIdFromPrefix(ctx, tabId, parsed.WidgetId)
+			if err != nil {
+				return nil, fmt.Errorf("failed to resolve widget %s: %w", parsed.WidgetId, err)
+			}
+
+			blockORef := waveobj.MakeORef(waveobj.OType_Block, fullBlockId)
+			rtInfo := wstore.GetRTInfo(blockORef)
+
+			blockData, err := wstore.DBGet[*waveobj.Block](ctx, fullBlockId)
+			var agentModel, agentMode string
+			if err == nil && blockData.Meta != nil {
+				if m, ok := blockData.Meta[AgentModelKey].(string); ok {
+					agentModel = m
+				}
+				if m, ok := blockData.Meta[AgentModeKey].(string); ok {
+					agentMode = m
+				}
+				if agentModel == "" {
+					if args := blockData.Meta.GetStringList(waveobj.MetaKey_CmdArgs); args != nil {
+						for i, arg := range args {
+							if arg == "--model" && i+1 < len(args) {
+								agentModel = args[i+1]
+							}
+						}
+					}
+				}
+				if agentMode == "" {
+					if envMap := blockData.Meta.GetStringMap(waveobj.MetaKey_CmdEnv, false); envMap != nil {
+						agentMode = envMap["AGENT_MODE"]
+					}
+				}
+			}
+
+			scrollback, err := getTermScrollbackOutput(
+				tabId,
+				parsed.WidgetId,
+				wshrpc.CommandTermGetScrollbackLinesData{
+					LineStart:   0,
+					LineEnd:     100,
+					LastCommand: false,
+				},
+			)
+			if err != nil {
+				return nil, fmt.Errorf("failed to read agent scrollback: %w", err)
+			}
+
+			status := "unknown"
+			contextPct := 0
+			lines := strings.Split(scrollback.Content, "\n")
+
+			for i := len(lines) - 1; i >= 0; i-- {
+				line := strings.ToLower(lines[i])
+				if strings.TrimSpace(line) == "" {
+					continue
+				}
+				if strings.Contains(line, "compacting") ||
+					strings.Contains(line, "summarizing") {
+					status = "compacting"
+					if idx := strings.Index(line, "%"); idx > 0 {
+						numStart := idx - 1
+						for numStart >= 0 && numStart < len(line) && line[numStart] >= '0' && line[numStart] <= '9' {
+							numStart--
+						}
+						if numStart >= 0 && numStart+1 < len(line) {
+							if pct, err := strconv.Atoi(line[numStart+1 : idx]); err == nil {
+								contextPct = pct
+							}
+						}
+					}
+					break
+				}
+				if strings.Contains(line, "error:") ||
+					strings.Contains(line, "failed:") ||
+					strings.Contains(line, "panic:") ||
+					strings.Contains(line, "fatal:") {
+					status = "error"
+					break
+				}
+				if strings.HasSuffix(strings.TrimSpace(lines[i]), ">") ||
+					strings.Contains(line, "waiting for input") {
+					status = "idle"
+					break
+				}
+				status = "active"
+				break
+			}
+
+			shellState := ""
+			if rtInfo != nil {
+				shellState = rtInfo.ShellState
+				if shellState == "ready" {
+					status = "idle"
+				} else if shellState == "running-command" {
+					status = "active"
+				}
+			}
+
+			return &TermGetAgentStatusToolOutput{
+				Status:         status,
+				ContextPercent: contextPct,
+				Model:          agentModel,
+				Mode:           agentMode,
+				ShellState:     shellState,
+				LastOutputSec:  scrollback.SinceLastOutputSec,
+			}, nil
+		},
+	}
+}
+
+// 100ms keeps the wait responsive without hammering the wstore cache, which is
+// already fronted by an in-memory map per-oref.
+const TermRunCommandPollInterval = 100 * time.Millisecond
+
+type TermRunCommandToolInput struct {
+	WidgetId     string `json:"widget_id"`
+	Command      string `json:"command"`
+	WaitTimeoutMs int    `json:"waittimeoutms,omitempty"`
+}
+
+type TermRunCommandToolOutput struct {
+	Success  bool   `json:"success"`
+	Status   string `json:"status"`
+	Output   string `json:"output,omitempty"`
+	ExitCode *int   `json:"exitcode,omitempty"`
+	TimedOut bool   `json:"timedout"`
+	WaitedMs int    `json:"waitedms"`
+}
+
+func parseTermRunCommandInput(input any) (*TermRunCommandToolInput, error) {
+	result := &TermRunCommandToolInput{}
+
+	if input == nil {
+		return nil, fmt.Errorf("input is required")
+	}
+
+	inputBytes, err := json.Marshal(input)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal input: %w", err)
+	}
+
+	if err := json.Unmarshal(inputBytes, result); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal input: %w", err)
+	}
+
+	if result.WidgetId == "" {
+		return nil, fmt.Errorf("widget_id is required")
+	}
+	if result.Command == "" {
+		return nil, fmt.Errorf("command is required")
+	}
+
+	if result.WaitTimeoutMs == 0 {
+		result.WaitTimeoutMs = 30000
+	}
+	if result.WaitTimeoutMs < 1000 {
+		result.WaitTimeoutMs = 1000
+	}
+	if result.WaitTimeoutMs > 120000 {
+		result.WaitTimeoutMs = 120000
+	}
+
+	return result, nil
+}
+
+func waitForShellReady(ctx context.Context, fullBlockId string, timeoutMs int) (status string, exitCode *int, lastCmd string, waitedMs int, err error) {
+	start := time.Now()
+	deadline := start.Add(time.Duration(timeoutMs) * time.Millisecond)
+	blockORef := waveobj.MakeORef(waveobj.OType_Block, fullBlockId)
+
+	sawNewCommand := false
+	initialLastCmd := ""
+	if rtInfo := wstore.GetRTInfo(blockORef); rtInfo != nil {
+		initialLastCmd = rtInfo.ShellLastCmd
+	}
+
+	for {
+		rtInfo := wstore.GetRTInfo(blockORef)
+		if rtInfo != nil {
+			switch rtInfo.ShellState {
+			case "ready":
+				lastCmd = rtInfo.ShellLastCmd
+				if !sawNewCommand {
+					return "completed", nil, lastCmd, int(time.Since(start) / time.Millisecond), nil
+				}
+				if rtInfo.ShellLastCmdExitCode != 0 || rtInfo.ShellLastCmd != initialLastCmd {
+					ec := rtInfo.ShellLastCmdExitCode
+					return "completed", &ec, lastCmd, int(time.Since(start) / time.Millisecond), nil
+				}
+			case "running-command":
+				sawNewCommand = true
+			}
+		}
+
+		if time.Now().After(deadline) {
+			waited := int(time.Since(start) / time.Millisecond)
+			if rtInfo := wstore.GetRTInfo(blockORef); rtInfo != nil {
+				lastCmd = rtInfo.ShellLastCmd
+				if rtInfo.ShellState == "running-command" {
+					return "running", nil, lastCmd, waited, nil
+				}
+			}
+			return "timeout", nil, lastCmd, waited, nil
+		}
+
+		select {
+		case <-ctx.Done():
+			return "timeout", nil, lastCmd, int(time.Since(start) / time.Millisecond), ctx.Err()
+		case <-time.After(TermRunCommandPollInterval):
+		}
+	}
+}
+
+func findIdleTerminalBlock(tabId string, excludeBlockId string) string {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	tab, err := wstore.DBGet[*waveobj.Tab](ctx, tabId)
+	if err != nil || tab == nil {
+		return ""
+	}
+	for _, blockId := range tab.BlockIds {
+		if blockId == excludeBlockId {
+			continue
+		}
+		blockORef := waveobj.MakeORef(waveobj.OType_Block, blockId)
+		rtInfo := wstore.GetRTInfo(blockORef)
+		if rtInfo != nil && rtInfo.ShellIntegration && rtInfo.ShellState == "ready" {
+			return blockId
+		}
+	}
+	return ""
+}
+
+func createTerminalBlock(tabId string) (string, error) {
+	createBlockData := wshrpc.CommandCreateBlockData{
+		TabId: tabId,
+		BlockDef: &waveobj.BlockDef{
+			Meta: map[string]any{
+				waveobj.MetaKey_View:          "term",
+				waveobj.MetaKey_Controller:    "cmd",
+				waveobj.MetaKey_Cmd:           "pwsh",
+				waveobj.MetaKey_CmdShell:      true,
+				waveobj.MetaKey_CmdRunOnStart: true,
+				waveobj.MetaKey_CmdRunOnce:    true,
+			},
+		},
+		Focused: false,
+	}
+
+	oref, err := wshclient.CreateBlockCommand(
+		wshclient.GetBareRpcClient(), createBlockData, nil,
+	)
+	if err != nil {
+		return "", fmt.Errorf("failed to create terminal block: %w", err)
+	}
+	return oref.OID, nil
+}
+
+func executeTermRunCommand(tabId string, parsed *TermRunCommandToolInput) (*TermRunCommandToolOutput, error) {
+	resolveCtx, cancelFn := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelFn()
+
+	fullBlockId, err := wcore.ResolveBlockIdFromPrefix(resolveCtx, tabId, parsed.WidgetId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve widget %s: %w", parsed.WidgetId, err)
+	}
+
+	blockORef := waveobj.MakeORef(waveobj.OType_Block, fullBlockId)
+	rtInfo := wstore.GetRTInfo(blockORef)
+	targetBlockId := fullBlockId
+
+	if rtInfo == nil || !rtInfo.ShellIntegration || rtInfo.ShellState == "running-command" {
+		idleBlockId := findIdleTerminalBlock(tabId, fullBlockId)
+		if idleBlockId != "" {
+			targetBlockId = idleBlockId
+		} else {
+			newBlockId, createErr := createTerminalBlock(tabId)
+			if createErr != nil {
+				return &TermRunCommandToolOutput{
+					Success: false,
+					Status:  "shell-busy-no-alternate",
+					Output:  fmt.Sprintf("Widget %s is busy (shell state: running-command) and failed to create a new terminal: %v", parsed.WidgetId, createErr),
+				}, nil
+			}
+			targetBlockId = newBlockId
+			createdPrefix := newBlockId[:8]
+			_ = createdPrefix
+			waitReadyCtx, waitReadyCancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer waitReadyCancel()
+			for {
+				newORef := waveobj.MakeORef(waveobj.OType_Block, newBlockId)
+				newRtInfo := wstore.GetRTInfo(newORef)
+				if newRtInfo != nil && newRtInfo.ShellIntegration && newRtInfo.ShellState == "ready" {
+					break
+				}
+				select {
+				case <-waitReadyCtx.Done():
+					return &TermRunCommandToolOutput{
+						Success: false,
+						Status:  "shell-busy-new-terminal-not-ready",
+						Output:  fmt.Sprintf("Widget %s is busy. Created a new terminal (%s) but it did not become ready in time.", parsed.WidgetId, newBlockId[:8]),
+					}, nil
+				case <-time.After(200 * time.Millisecond):
+				}
+			}
+		}
+	}
+
+	textToSend := parsed.Command + "\r"
+	err = wshclient.ControllerInputCommand(
+		wshclient.GetBareRpcClient(),
+		wshrpc.CommandBlockInputData{
+			BlockId:     targetBlockId,
+			InputData64: base64.StdEncoding.EncodeToString([]byte(textToSend)),
+		},
+		nil,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send input to terminal: %w", err)
+	}
+
+	waitCtx, cancelWait := context.WithTimeout(context.Background(), time.Duration(parsed.WaitTimeoutMs)*time.Millisecond)
+	defer cancelWait()
+
+	status, exitCode, _, waitedMs, _ := waitForShellReady(waitCtx, targetBlockId, parsed.WaitTimeoutMs)
+
+	usedWidget := targetBlockId[:8]
+	out := &TermRunCommandToolOutput{
+		Status:   status,
+		Output:   usedWidget,
+		ExitCode: exitCode,
+		TimedOut: status == "timeout",
+		WaitedMs: waitedMs,
+		Success:  status == "completed",
+	}
+	return out, nil
+}
+
+func GetTermRunCommandToolDefinition(tabId string) uctypes.ToolDefinition {
+	return uctypes.ToolDefinition{
+		Name:        "term_run_command",
+		DisplayName: "Run Command in Terminal",
+		Description: "Run a command in a terminal widget and wait for it to finish. " +
+			"Sends the command followed by Enter via the terminal controller, then polls the shell " +
+			"integration ShellState until the shell returns to the \"ready\" state (prompt visible). " +
+			"If the target terminal is busy (e.g. running a TUI app like opencode), automatically finds an idle terminal in the same tab, " +
+			"or creates a new terminal block if none is idle. The 'output' field contains the 8-char widget_id used. " +
+			"Use this for non-interactive commands on idle shells. For interacting with running TUI apps, use term_send_input instead. " +
+			"All tool calls are pre-approved.",
+		ToolLogName: "term:runcommand",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"widget_id": map[string]any{
+					"type":        "string",
+					"description": "8-character widget ID of the terminal widget",
+				},
+				"command": map[string]any{
+					"type":        "string",
+					"description": "Command to execute in the terminal. Will be terminated with a newline.",
+				},
+				"waittimeoutms": map[string]any{
+					"type":        "integer",
+					"description": "Maximum number of milliseconds to wait for the command to finish. Default 30000, min 1000, max 120000.",
+				},
+			},
+			"required":             []string{"widget_id", "command"},
+			"additionalProperties": false,
+		},
+		ToolCallDesc: func(input any, output any, toolUseData *uctypes.UIMessageDataToolUse) string {
+			parsed, err := parseTermRunCommandInput(input)
+			if err != nil {
+				return fmt.Sprintf("error parsing input: %v", err)
+			}
+
+			cmdPreview := parsed.Command
+			if len(cmdPreview) > 50 {
+				cmdPreview = cmdPreview[:47] + "..."
+			}
+			return fmt.Sprintf("running %q in terminal %s (timeout %dms)", cmdPreview, parsed.WidgetId, parsed.WaitTimeoutMs)
+		},
+		ToolApproval: func(input any) string {
+			return uctypes.ApprovalAutoApproved
+		},
+		ToolAnyCallback: func(input any, toolUseData *uctypes.UIMessageDataToolUse) (any, error) {
+			parsed, err := parseTermRunCommandInput(input)
+			if err != nil {
+				return nil, err
+			}
+			return executeTermRunCommand(tabId, parsed)
 		},
 	}
 }

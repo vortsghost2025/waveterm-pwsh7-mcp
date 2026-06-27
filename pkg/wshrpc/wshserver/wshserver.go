@@ -6,6 +6,7 @@ package wshserver
 // this file contains the implementation of the wsh server methods
 
 import (
+	"bufio"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -13,13 +14,17 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
+	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/skratchdot/open-golang/open"
 	"github.com/wavetermdev/waveterm/pkg/aiusechat"
 	"github.com/wavetermdev/waveterm/pkg/aiusechat/chatstore"
@@ -51,8 +56,10 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/wcloud"
 	"github.com/wavetermdev/waveterm/pkg/wconfig"
 	"github.com/wavetermdev/waveterm/pkg/wcore"
+	"github.com/wavetermdev/waveterm/pkg/web/sse"
 	"github.com/wavetermdev/waveterm/pkg/wps"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc"
+	"github.com/wavetermdev/waveterm/pkg/wshrpc/wshclient"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
 	"github.com/wavetermdev/waveterm/pkg/wsl"
 	"github.com/wavetermdev/waveterm/pkg/wslconn"
@@ -863,6 +870,82 @@ func (ws *WshServer) DebugTermCommand(ctx context.Context, data wshrpc.CommandDe
 	}, nil
 }
 
+var csiStripRe = regexp.MustCompile(`\x1b\[[0-9;?]*[ -/]*[@-~]`)
+
+func stripANSI(data []byte) []byte {
+	return csiStripRe.ReplaceAll(data, nil)
+}
+
+func (ws *WshServer) TermGetScrollbackLinesCommand(ctx context.Context, data wshrpc.CommandTermGetScrollbackLinesData) (*wshrpc.CommandTermGetScrollbackLinesRtnData, error) {
+	rpcSource := wshutil.GetRpcSourceFromContext(ctx)
+	if rpcSource == "" {
+		return nil, fmt.Errorf("no rpc source (route) set")
+	}
+	if !strings.HasPrefix(rpcSource, wshutil.RoutePrefix_FeBlock) {
+		return nil, fmt.Errorf("unexpected rpc source prefix: %s", rpcSource)
+	}
+	blockId := strings.TrimPrefix(rpcSource, wshutil.RoutePrefix_FeBlock)
+
+	waveFile, err := filestore.WFS.Stat(ctx, blockId, wavebase.BlockFile_Term)
+	if err == fs.ErrNotExist {
+		return &wshrpc.CommandTermGetScrollbackLinesRtnData{}, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("error statting term file: %w", err)
+	}
+
+	dataLength := waveFile.DataLength()
+	if dataLength == 0 {
+		return &wshrpc.CommandTermGetScrollbackLinesRtnData{
+			TotalLines:  0,
+			LineStart:   0,
+			Lines:       []string{},
+			LastUpdated: waveFile.ModTs,
+		}, nil
+	}
+
+	readOffset := waveFile.DataStartIdx()
+	_, readData, err := filestore.WFS.ReadAt(ctx, blockId, wavebase.BlockFile_Term, readOffset, dataLength)
+	if err != nil {
+		return nil, fmt.Errorf("error reading term file: %w", err)
+	}
+
+	readData = stripANSI(readData)
+	allLines := strings.Split(string(readData), "\n")
+	if len(allLines) > 0 && allLines[len(allLines)-1] == "" {
+		allLines = allLines[:len(allLines)-1]
+	}
+
+	totalLines := len(allLines)
+
+	lineStart := data.LineStart
+	if lineStart < 0 {
+		lineStart = 0
+	}
+	if lineStart > totalLines {
+		lineStart = totalLines
+	}
+
+	lineEnd := data.LineEnd
+	if lineEnd <= 0 || lineEnd > totalLines {
+		lineEnd = totalLines
+	}
+
+	var selectedLines []string
+	if lineStart < lineEnd {
+		selectedLines = allLines[lineStart:lineEnd]
+	} else {
+		selectedLines = []string{}
+	}
+
+	return &wshrpc.CommandTermGetScrollbackLinesRtnData{
+		TotalLines:  totalLines,
+		LineStart:   lineStart,
+		Lines:       selectedLines,
+		LastUpdated: waveFile.ModTs,
+	}, nil
+}
+
 func (ws *WshServer) WaveInfoCommand(ctx context.Context) (*wshrpc.WaveInfoData, error) {
 	return &wshrpc.WaveInfoData{
 		Version:   wavebase.WaveVersion,
@@ -1291,6 +1374,94 @@ func (ws *WshServer) GetWaveAIChatCommand(ctx context.Context, data wshrpc.Comma
 	return uiChat, nil
 }
 
+func (ws *WshServer) AiSendMessageCommand(ctx context.Context, data wshrpc.AiMessageData) error {
+	if data.Message == "" {
+		return fmt.Errorf("message is required")
+	}
+
+	chatID := uuid.New().String()
+	messageID := uuid.New().String()
+
+	aiMessage := &uctypes.AIMessage{
+		MessageId: messageID,
+		Parts: []uctypes.AIMessagePart{
+			{
+				Type: uctypes.AIMessagePartTypeText,
+				Text: data.Message,
+			},
+		},
+	}
+
+	log.Printf("AiSendMessage: chatId=%s message=%q\n", chatID, data.Message)
+
+	chatOpts := uctypes.WaveChatOpts{
+		ChatId:   chatID,
+		ClientId: uuid.New().String(),
+		Config: uctypes.AIOptsType{
+			APIType:   uctypes.APIType_OpenAIChat,
+			Model:     "gpt-4o",
+			MaxTokens: 2048,
+		},
+		Tools:        []uctypes.ToolDefinition{},
+		SystemPrompt: []string{"You are a helpful assistant."},
+	}
+
+	testWriter := &testResponseWriter{}
+	sseHandler := sse.MakeSSEHandlerCh(testWriter, ctx)
+	defer sseHandler.Close()
+
+	return aiusechat.WaveAIPostMessageWrap(ctx, sseHandler, aiMessage, chatOpts)
+}
+
+func (ws *WshServer) WaveAIAddContextCommand(ctx context.Context, data wshrpc.CommandWaveAIAddContextData) error {
+	if data.Text == "" && len(data.Files) == 0 && !data.NewChat && !data.Submit {
+		return fmt.Errorf("no Wave AI context provided")
+	}
+
+	sourceRoute := wshutil.GetRpcSourceFromContext(ctx)
+	if sourceRoute == "" {
+		return fmt.Errorf("missing Wave AI context source route")
+	}
+
+	sourceORef, err := waveobj.ParseORef(sourceRoute)
+	if err != nil {
+		return fmt.Errorf("invalid Wave AI context source route %q: %w", sourceRoute, err)
+	}
+
+	var tabId string
+	switch sourceORef.OType {
+	case waveobj.OType_Tab:
+		tabId = sourceORef.OID
+	case waveobj.OType_Block:
+		var err error
+		tabId, err = wstore.DBFindTabForBlockId(ctx, sourceORef.OID)
+		if err != nil {
+			return fmt.Errorf("failed to resolve Wave AI tab: %w", err)
+		}
+	default:
+		return fmt.Errorf("Wave AI context must originate from a tab or block, got %q", sourceRoute)
+	}
+	if tabId == "" {
+		return fmt.Errorf("failed to resolve Wave AI tab")
+	}
+
+	route := wshutil.MakeTabRouteId(tabId)
+	return wshclient.WaveAIAddContextCommand(wshclient.GetBareRpcClient(), data, &wshrpc.RpcOpts{
+		Route:   route,
+		Timeout: 30000,
+	})
+}
+
+type testResponseWriter struct{}
+
+func (w *testResponseWriter) Header() http.Header {
+	return http.Header{}
+}
+
+func (w *testResponseWriter) WriteHeader(statusCode int) {}
+
+func (w *testResponseWriter) Write(b []byte) (int, error) { return len(b), nil }
+
 func (ws *WshServer) GetWaveAIRateLimitCommand(ctx context.Context) (*uctypes.RateLimitInfo, error) {
 	return aiusechat.GetGlobalRateLimit(), nil
 }
@@ -1573,4 +1744,129 @@ func (ws *WshServer) JobControllerDetachJobCommand(ctx context.Context, jobId st
 
 func (ws *WshServer) BlockJobStatusCommand(ctx context.Context, blockId string) (*wshrpc.BlockJobStatusData, error) {
 	return jobcontroller.GetBlockJobStatus(ctx, blockId)
+}
+
+func (ws *WshServer) TermInfoCommand(ctx context.Context, data wshrpc.TermInfoRequest) (*wshrpc.TermInfo, error) {
+	block, err := wstore.DBMustGet[*waveobj.Block](ctx, data.BlockID)
+	if err != nil {
+		return nil, fmt.Errorf("getting block %s: %w", data.BlockID, err)
+	}
+	cwd := block.Meta.GetString(waveobj.MetaKey_CmdCwd, "")
+	return &wshrpc.TermInfo{
+		BlockID: data.BlockID,
+		Cwd:     cwd,
+	}, nil
+}
+
+func (ws *WshServer) CommandRunStreamCommand(ctx context.Context, req wshrpc.CommandRunStreamRequest) chan wshrpc.RespOrErrorUnion[wshrpc.CommandRunStreamEvent] {
+	rtn := make(chan wshrpc.RespOrErrorUnion[wshrpc.CommandRunStreamEvent])
+	if req.Interactive {
+		go func() {
+			defer close(rtn)
+			rtn <- wshrpc.RespOrErrorUnion[wshrpc.CommandRunStreamEvent]{
+				Response: wshrpc.CommandRunStreamEvent{
+					EventType: wshrpc.CommandRunStreamEvent_Error,
+					Error:     "interactive mode not yet implemented",
+				},
+			}
+		}()
+		return rtn
+	}
+	go func() {
+		defer close(rtn)
+		defer func() {
+			panichandler.PanicHandler("CommandRunStreamCommand", recover())
+		}()
+		cmdCtx, cmdCancel := context.WithCancel(ctx)
+		defer cmdCancel()
+		shell := shellutil.DetectLocalShellPath()
+		cmd := exec.CommandContext(cmdCtx, shell, "-c", req.Command)
+		if req.Cwd != "" {
+			cmd.Dir = req.Cwd
+		}
+		if len(req.Env) > 0 {
+			cmd.Env = append(os.Environ(), req.Env...)
+		}
+		stdoutPipe, err := cmd.StdoutPipe()
+		if err != nil {
+			rtn <- wshrpc.RespOrErrorUnion[wshrpc.CommandRunStreamEvent]{
+				Response: wshrpc.CommandRunStreamEvent{
+					EventType: wshrpc.CommandRunStreamEvent_Error,
+					Error:     fmt.Sprintf("creating stdout pipe: %v", err),
+				},
+			}
+			return
+		}
+		stderrPipe, err := cmd.StderrPipe()
+		if err != nil {
+			rtn <- wshrpc.RespOrErrorUnion[wshrpc.CommandRunStreamEvent]{
+				Response: wshrpc.CommandRunStreamEvent{
+					EventType: wshrpc.CommandRunStreamEvent_Error,
+					Error:     fmt.Sprintf("creating stderr pipe: %v", err),
+				},
+			}
+			return
+		}
+		err = cmd.Start()
+		if err != nil {
+			rtn <- wshrpc.RespOrErrorUnion[wshrpc.CommandRunStreamEvent]{
+				Response: wshrpc.CommandRunStreamEvent{
+					EventType: wshrpc.CommandRunStreamEvent_Error,
+					Error:     fmt.Sprintf("starting command: %v", err),
+				},
+			}
+			return
+		}
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			scanner := bufio.NewScanner(stdoutPipe)
+			for scanner.Scan() {
+				line := scanner.Text()
+				rtn <- wshrpc.RespOrErrorUnion[wshrpc.CommandRunStreamEvent]{
+					Response: wshrpc.CommandRunStreamEvent{
+						EventType: wshrpc.CommandRunStreamEvent_Stdout,
+						Data:      line + "\n",
+					},
+				}
+			}
+		}()
+		go func() {
+			defer wg.Done()
+			scanner := bufio.NewScanner(stderrPipe)
+			for scanner.Scan() {
+				line := scanner.Text()
+				rtn <- wshrpc.RespOrErrorUnion[wshrpc.CommandRunStreamEvent]{
+					Response: wshrpc.CommandRunStreamEvent{
+						EventType: wshrpc.CommandRunStreamEvent_Stderr,
+						Data:      line + "\n",
+					},
+				}
+			}
+		}()
+		wg.Wait()
+		err = cmd.Wait()
+		exitCode := 0
+		if err != nil {
+			if exitErr, ok := err.(*exec.ExitError); ok {
+				exitCode = exitErr.ExitCode()
+			} else {
+				rtn <- wshrpc.RespOrErrorUnion[wshrpc.CommandRunStreamEvent]{
+					Response: wshrpc.CommandRunStreamEvent{
+						EventType: wshrpc.CommandRunStreamEvent_Error,
+						Error:     fmt.Sprintf("command error: %v", err),
+					},
+				}
+				return
+			}
+		}
+		rtn <- wshrpc.RespOrErrorUnion[wshrpc.CommandRunStreamEvent]{
+			Response: wshrpc.CommandRunStreamEvent{
+				EventType: wshrpc.CommandRunStreamEvent_Exit,
+				ExitCode:  &exitCode,
+			},
+		}
+	}()
+	return rtn
 }

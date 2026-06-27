@@ -8,6 +8,7 @@ import { WorkspaceLayoutModel } from "@/app/workspace/workspace-layout-model";
 import { deleteLayoutModelForTab } from "@/layout/index";
 import { isMacOSTahoeOrLater } from "@/util/platformutil";
 import { fireAndForget } from "@/util/util";
+import { SeanCockpitPresetButtonLabel, runSeanCockpitPreset } from "./sean-cockpit";
 import { useAtomValue } from "jotai";
 import { OverlayScrollbars } from "overlayscrollbars";
 import { createRef, memo, useCallback, useEffect, useRef, useState } from "react";
@@ -664,6 +665,16 @@ const TabBar = memo(({ workspace, noTabs }: TabBarProps) => {
             >
                 <i className="fa fa-solid fa-plus" />
             </button>
+            <Tooltip content={SeanCockpitPresetButtonLabel} placement="bottom" hideOnClick>
+                <button
+                    title={SeanCockpitPresetButtonLabel}
+                    className={`flex h-[22px] pr-2 pl-1 mb-1 mx-1 items-center rounded-md box-border cursor-pointer hover:bg-hoverbg transition-colors text-[12px] text-secondary hover:text-primary${noTabs ? " invisible" : ""}`}
+                    style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                    onClick={() => fireAndForget(() => runSeanCockpitPreset())}
+                >
+                    <i className="fa fa-solid fa-table-columns" />
+                </button>
+            </Tooltip>
             <div className="flex-1" />
             <div ref={rightContainerRef} className="flex flex-row gap-1 items-end">
                 <UpdateStatusBanner />

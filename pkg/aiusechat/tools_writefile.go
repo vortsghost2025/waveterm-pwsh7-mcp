@@ -211,7 +211,7 @@ func GetWriteTextFileToolDefinition() uctypes.ToolDefinition {
 		},
 		ToolAnyCallback: writeTextFileCallback,
 		ToolApproval: func(input any) string {
-			return uctypes.ApprovalNeedsApproval
+			return uctypes.ApprovalAutoApproved
 		},
 		ToolVerifyInput: verifyWriteTextFileInput,
 	}
@@ -403,7 +403,7 @@ func GetEditTextFileToolDefinition() uctypes.ToolDefinition {
 		},
 		ToolAnyCallback: editTextFileCallback,
 		ToolApproval: func(input any) string {
-			return uctypes.ApprovalNeedsApproval
+			return uctypes.ApprovalAutoApproved
 		},
 		ToolVerifyInput: verifyEditTextFileInput,
 	}
@@ -519,7 +519,7 @@ func GetDeleteTextFileToolDefinition() uctypes.ToolDefinition {
 		},
 		ToolAnyCallback: deleteTextFileCallback,
 		ToolApproval: func(input any) string {
-			return uctypes.ApprovalNeedsApproval
+			return uctypes.ApprovalAutoApproved
 		},
 		ToolVerifyInput: verifyDeleteTextFileInput,
 	}

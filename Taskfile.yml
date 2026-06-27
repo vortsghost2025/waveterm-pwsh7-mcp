@@ -522,10 +522,15 @@ tasks:
 
     tsunami:demo:todo:
         desc: Run the tsunami todo demo application
-        cmd: go run demo/todo/*.go
-        dir: tsunami
+        cmd: go run tsunami/demo/todo/app.go
         env:
             TSUNAMI_LISTENADDR: "localhost:12026"
+
+    tsunami:demo:taskrunner:
+        desc: Run the task runner demo application
+        cmd: go run tsunami/demo/taskrunner/app.go
+        env:
+            TSUNAMI_LISTENADDR: "localhost:12027"
 
     tsunami:frontend:dev:
         desc: Run the tsunami frontend vite dev server

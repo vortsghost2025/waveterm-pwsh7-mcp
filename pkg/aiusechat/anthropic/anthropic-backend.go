@@ -34,6 +34,10 @@ const (
 	ProviderMetadataThinkingSignatureKey = "anthropic:signature"
 )
 
+func init() {
+	uctypes.RegisterMessageType(uctypes.MsgTypeAnthropic, &anthropicChatMessage{})
+}
+
 // ---------- Anthropic wire types (subset) ----------
 // Derived from anthropic-messages-api.md and anthropic-streaming.md. :contentReference[oaicite:6]{index=6} :contentReference[oaicite:7]{index=7}
 

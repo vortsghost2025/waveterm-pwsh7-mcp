@@ -123,13 +123,9 @@ export class TermWshClient extends WshClient {
         const totalLines = buffer.length;
 
         if (data.lastcommand) {
-            if (globalStore.get(termWrap.shellIntegrationStatusAtom) == null) {
-                throw new Error("Cannot get last command data without shell integration");
-            }
-
             let startBufferIndex = 0;
             let endBufferIndex = totalLines;
-            if (termWrap.promptMarkers.length > 0) {
+            if (globalStore.get(termWrap.shellIntegrationStatusAtom) != null && termWrap.promptMarkers.length > 0) {
                 // The last marker is the current prompt, so we want the second-to-last for the previous command
                 // If there's only one marker, use it (edge case for first command)
                 const markerIndex =
@@ -144,6 +140,9 @@ export class TermWshClient extends WshClient {
                     const currentPromptMarker = termWrap.promptMarkers[termWrap.promptMarkers.length - 1];
                     endBufferIndex = currentPromptMarker.line;
                 }
+            } else {
+                startBufferIndex = Math.max(0, totalLines - 1000);
+                endBufferIndex = totalLines;
             }
 
             const lines = bufferLinesToText(buffer, startBufferIndex, endBufferIndex);

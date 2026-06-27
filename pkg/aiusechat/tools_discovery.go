@@ -571,7 +571,7 @@ func GetScanTerminalsToolDefinition() uctypes.ToolDefinition {
 	return uctypes.ToolDefinition{
 		Name:        "scan_terminals",
 		DisplayName: "Scan Terminal Widgets",
-		Description: "Cross-tab discovery: enumerate every terminal widget (or any view-typed widget) across every tab in every open Wave workspace. Mirrors the in-app AI assistant's ability to see all terminals. Returns tab/workspace context plus shell runtime info (shell type, state, last command, exit code, integration status). Use this to pick a terminal to inspect or interact with, then call term_get_scrollback or term_run_command on the chosen widget_id.",
+		Description: "Cross-tab discovery: enumerate every terminal widget (or any view-typed widget) across every tab in every open Wave workspace. Mirrors the in-app AI assistant's ability to see all terminals. Returns tab/workspace context plus shell runtime info (shell type, state, last command, exit code, integration status). Use this to pick a terminal to inspect or interact with, then call term_get_scrollback or term_send_input on the chosen widget_id.",
 		ToolLogName: "discover:scterminals",
 		InputSchema: map[string]any{
 			"type": "object",

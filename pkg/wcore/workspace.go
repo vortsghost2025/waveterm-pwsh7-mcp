@@ -399,9 +399,6 @@ func ListWorkspaces(ctx context.Context) (waveobj.WorkspaceList, error) {
 
 	var wl waveobj.WorkspaceList
 	for _, workspace := range workspaces {
-		if workspace.Name == "" || workspace.Icon == "" || workspace.Color == "" {
-			continue
-		}
 		windowId, ok := workspaceToWindow[workspace.OID]
 		if !ok {
 			windowId = ""

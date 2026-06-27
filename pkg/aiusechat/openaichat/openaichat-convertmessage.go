@@ -126,6 +126,12 @@ func buildChatHTTPRequest(ctx context.Context, messages []ChatRequestMessage, ch
 		}
 	}
 
+	var toolNames []string
+	for _, tool := range allTools {
+		toolNames = append(toolNames, tool.Name)
+	}
+	log.Printf("[AIUSECHAT OPENAI TOOLS] chatId=%s tools=%s", chatOpts.ChatId, strings.Join(toolNames, ","))
+
 	if wavebase.IsDevMode() {
 		log.Printf("openaichat: model %s, messages: %d, tools: %d\n", opts.Model, len(messages), len(allTools))
 	}

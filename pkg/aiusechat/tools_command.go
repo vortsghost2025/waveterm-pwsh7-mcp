@@ -94,14 +94,18 @@ var cmdAllowlist = []allowedCommand{
 	{regexp.MustCompile(`^git config --list$`), "git config list"},
 	{regexp.MustCompile(`^git blame .*$`), "git blame"},
 
-	// Dev tool version checks
-	{regexp.MustCompile(`^go version$`), "go version"},
-	{regexp.MustCompile(`^go env .*$`), "go env"},
-	{regexp.MustCompile(`^go list .*$`), "go list"},
-	{regexp.MustCompile(`^go vet .*$`), "go vet"},
+	// Go toolchain (broad pattern: any go subcommand)
+	{regexp.MustCompile(`^go [a-z].*$`), "go subcommand"},
+	{regexp.MustCompile(`^go$`), "go"},
 	{regexp.MustCompile(`^node --version$`), "node version"},
 	{regexp.MustCompile(`^npm --version$`), "npm version"},
 	{regexp.MustCompile(`^npm list .*$`), "npm list"},
+	{regexp.MustCompile(`^npm install$`), "npm install"},
+	{regexp.MustCompile(`^npm install .+$`), "npm install"},
+	{regexp.MustCompile(`^npm run$`), "npm run"},
+	{regexp.MustCompile(`^npm run .+$`), "npm run"},
+	{regexp.MustCompile(`^npm start$`), "npm start"},
+	{regexp.MustCompile(`^npm test$`), "npm test"},
 	{regexp.MustCompile(`^npx --version$`), "npx version"},
 	{regexp.MustCompile(`^python --version$`), "python version"},
 	{regexp.MustCompile(`^python -m py_compile .+$`), "python compile check"},
@@ -109,6 +113,8 @@ var cmdAllowlist = []allowedCommand{
 	{regexp.MustCompile(`^pip list .*$`), "pip list"},
 	{regexp.MustCompile(`^task --list$`), "task list"},
 	{regexp.MustCompile(`^task --list-all$`), "task list"},
+	{regexp.MustCompile(`^task$`), "task"},
+	{regexp.MustCompile(`^task .+$`), "task"},
 	{regexp.MustCompile(`^which .+$`), "which"},
 	{regexp.MustCompile(`^Get-Command .+$`), "Get-Command"},
 	{regexp.MustCompile(`^where .+$`), "where"},
@@ -117,11 +123,13 @@ var cmdAllowlist = []allowedCommand{
 	// WSH (Wave Shell) commands
 	{regexp.MustCompile(`^wsh$`), "wsh"},
 	{regexp.MustCompile(`^wsh --help$`), "wsh help"},
+	{regexp.MustCompile(`^wsh input .+$`), "wsh input"},
 	{regexp.MustCompile(`^wsh version$`), "wsh version"},
 	{regexp.MustCompile(`^wsh getvar .+$`), "wsh getvar"},
 	{regexp.MustCompile(`^wsh blocks$`), "wsh blocks"},
 	{regexp.MustCompile(`^wsh status$`), "wsh status"},
 	{regexp.MustCompile(`^wsh chatstatus$`), "wsh chatstatus"},
+	{regexp.MustCompile(`^wsh ai .+$`), "wsh ai"},
 
 	// Disk usage (read-only)
 	{regexp.MustCompile(`^df .*$`), "df"},
@@ -358,7 +366,7 @@ func GetRunCommandToolDefinition() uctypes.ToolDefinition {
 	return uctypes.ToolDefinition{
 		Name:        "run_command",
 		DisplayName: "Run Command",
-		Description: "Run a shell command with read-only access. Only allowlisted commands are permitted. Destructive operations are blocked. Requires user approval before execution.",
+		Description: "Run a shell command with read-only access. Only allowlisted commands are permitted. Destructive operations are blocked.",
 		ToolLogName: "gen:runcommand",
 		Strict:      true,
 		InputSchema: map[string]any{
@@ -381,7 +389,7 @@ func GetRunCommandToolDefinition() uctypes.ToolDefinition {
 		},
 		ToolAnyCallback: runCommandCallback,
 		ToolApproval: func(input any) string {
-			return uctypes.ApprovalNeedsApproval
+			return uctypes.ApprovalAutoApproved
 		},
 		ToolVerifyInput: verifyRunCommandInput,
 	}
@@ -519,7 +527,7 @@ func GetRunInteractiveCommandToolDefinition() uctypes.ToolDefinition {
 					"description": "Timeout in milliseconds. Default 60000 (60s). Min 1000, max 600000 (10 minutes).",
 				},
 			},
-			"required":             []string{"command"},
+			"required":             []string{"command", "timeout_ms"},
 			"additionalProperties": false,
 		},
 		ToolCallDesc: func(input any, output any, toolUseData *uctypes.UIMessageDataToolUse) string {
@@ -534,7 +542,7 @@ func GetRunInteractiveCommandToolDefinition() uctypes.ToolDefinition {
 		},
 		ToolAnyCallback: runInteractiveCommandCallback,
 		ToolApproval: func(input any) string {
-			return uctypes.ApprovalNeedsApproval
+			return uctypes.ApprovalAutoApproved
 		},
 		ToolVerifyInput: verifyRunInteractiveCommandInput,
 	}

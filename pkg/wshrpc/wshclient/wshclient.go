@@ -101,6 +101,11 @@ func CheckGoVersionCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) (*wshrpc.Com
 	return resp, err
 }
 
+// command "commandrunstream", wshserver.CommandRunStreamCommand
+func CommandRunStreamCommand(w *wshutil.WshRpc, data wshrpc.CommandRunStreamRequest, opts *wshrpc.RpcOpts) chan wshrpc.RespOrErrorUnion[wshrpc.CommandRunStreamEvent] {
+	return sendRpcRequestResponseStreamHelper[wshrpc.CommandRunStreamEvent](w, "commandrunstream", data, opts)
+}
+
 // command "connconnect", wshserver.ConnConnectCommand
 func ConnConnectCommand(w *wshutil.WshRpc, data wshrpc.ConnRequest, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "connconnect", data, opts)
@@ -921,6 +926,12 @@ func StreamTestCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) chan wshrpc.Resp
 // command "termgetscrollbacklines", wshserver.TermGetScrollbackLinesCommand
 func TermGetScrollbackLinesCommand(w *wshutil.WshRpc, data wshrpc.CommandTermGetScrollbackLinesData, opts *wshrpc.RpcOpts) (*wshrpc.CommandTermGetScrollbackLinesRtnData, error) {
 	resp, err := sendRpcRequestCallHelper[*wshrpc.CommandTermGetScrollbackLinesRtnData](w, "termgetscrollbacklines", data, opts)
+	return resp, err
+}
+
+// command "terminfo", wshserver.TermInfoCommand
+func TermInfoCommand(w *wshutil.WshRpc, data wshrpc.TermInfoRequest, opts *wshrpc.RpcOpts) (*wshrpc.TermInfo, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.TermInfo](w, "terminfo", data, opts)
 	return resp, err
 }
 
