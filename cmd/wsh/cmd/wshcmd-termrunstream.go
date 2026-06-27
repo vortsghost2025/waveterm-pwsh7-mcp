@@ -97,7 +97,7 @@ func termRunStreamRun(cmd *cobra.Command, args []string) (rtnErr error) {
 			WriteStdout("%s\n", string(data))
 		} else {
 			if event.EventType == wshrpc.CommandRunStreamEvent_Stdout || event.EventType == wshrpc.CommandRunStreamEvent_Stderr {
-				WriteStdout(event.Data)
+				WriteStdout("%s", event.Data)
 			} else if event.EventType == wshrpc.CommandRunStreamEvent_Error {
 				WriteStderr("error: %s\n", event.Error)
 			} else if event.EventType == wshrpc.CommandRunStreamEvent_Exit {
