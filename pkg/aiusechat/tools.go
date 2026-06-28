@@ -192,6 +192,8 @@ func GenerateTabStateAndTools(ctx context.Context, tabid string, widgetAccess bo
 		tools = append(tools, GetNoteListToolDefinition())
 		tools = append(tools, GetNoteDeleteToolDefinition())
 		tools = append(tools, GetNoteSearchToolDefinition())
+		tools = append(tools, GetNoteDeleteManyToolDefinition())
+		tools = append(tools, GetNoteDeleteByScopeToolDefinition())
 		tools = append(tools, GetSysInfoToolDefinition())
 		tools = append(tools, GetSysEnvToolDefinition())
 		tools = append(tools, GetGetWidgetToolDefinition())
@@ -214,6 +216,7 @@ func GenerateTabStateAndTools(ctx context.Context, tabid string, widgetAccess bo
 		if viewTypes["term"] {
 			tools = append(tools, GetTermGetScrollbackToolDefinition(tabid))
 			tools = append(tools, GetTermSendInputToolDefinition(tabid))
+		tools = append(tools, GetTermSendKeyToolDefinition(tabid))
 			tools = append(tools, GetTermRunCommandToolDefinition(tabid))
 			tools = append(tools, GetTermSpawnAgentToolDefinition(tabid))
 			tools = append(tools, GetTermGetAgentStatusToolDefinition(tabid))
@@ -244,6 +247,8 @@ func GenerateTabStateAndTools(ctx context.Context, tabid string, widgetAccess bo
 	}
 	tools = append(tools, GetToolListToolDefinition(chatOpts))
 	tools = append(tools, GetToolSchemaToolDefinition(chatOpts))
+	tools = append(tools, GetAuditQueryToolDefinition())
+	tools = append(tools, GetAuditTailToolDefinition())
 	return tabState, tools, nil
 }
 
@@ -373,8 +378,10 @@ func GetToolListToolDefinition(chatOpts *uctypes.WaveChatOpts) uctypes.ToolDefin
 		ToolLogName: "gen:tool_list",
 		Strict:      true,
 		InputSchema: map[string]any{
-			"type":       "object",
-			"properties": map[string]any{},
+			"type":                 "object",
+			"properties":           map[string]any{},
+			"required":             []string{},
+			"additionalProperties": false,
 		},
 		ToolAnyCallback: func(input any, toolUseData *uctypes.UIMessageDataToolUse) (any, error) {
 			tools := chatOpts.Tools

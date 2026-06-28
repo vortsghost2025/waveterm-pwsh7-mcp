@@ -92,6 +92,24 @@ type NoteDeleteOutput struct {
 	Deleted bool `json:"deleted"`
 }
 
+type NoteDeleteManyInput struct {
+	WorkspaceId string   `json:"workspaceid,omitempty"`
+	Ids         []string `json:"ids"`
+}
+
+type NoteDeleteManyOutput struct {
+	Deleted int `json:"deleted"`
+}
+
+type NoteDeleteByScopeInput struct {
+	WorkspaceId string `json:"workspaceid,omitempty"`
+	Scope       string `json:"scope"`
+}
+
+type NoteDeleteByScopeOutput struct {
+	Deleted int `json:"deleted"`
+}
+
 type NoteSearchInput struct {
 	WorkspaceId string `json:"workspaceid,omitempty"`
 	Scope       string `json:"scope,omitempty"`
@@ -151,7 +169,7 @@ func GetNotePutToolDefinition() uctypes.ToolDefinition {
 					"description": "Optional batch mode: array of note operations. When provided, single-item fields (body, scope, key, tags, ttlsec) are ignored. Each operation returns a result in the same order.",
 				},
 			},
-			"required":             []string{},
+			"required":             []string{"body", "scope", "key", "tags", "ttlsec", "operations"},
 			"additionalProperties": false,
 		},
 		ToolAnyCallback: func(input any, toolUseData *uctypes.UIMessageDataToolUse) (any, error) {
@@ -223,7 +241,7 @@ func GetNoteGetToolDefinition() uctypes.ToolDefinition {
 					"description": "Optional batch mode: array of get operations. When provided, single-item fields (id, key, scope) are ignored. Each operation returns a result in the same order.",
 				},
 			},
-			"required":             []string{},
+			"required":             []string{"id", "key", "scope", "operations"},
 			"additionalProperties": false,
 		},
 		ToolAnyCallback: func(input any, toolUseData *uctypes.UIMessageDataToolUse) (any, error) {
@@ -274,12 +292,12 @@ func GetNoteListToolDefinition() uctypes.ToolDefinition {
 					"type":        "string",
 					"description": "Optional glob pattern to filter by tags (e.g. '*important*')",
 				},
-				"limit": map[string]any{
+			"limit": map[string]any{
 					"type":        "integer",
-					"default":     50,
-					"description": "Maximum number of notes to return (default: 50, max: 200)",
+					"description": "Maximum number of notes to return (default 50, max 200)",
 				},
 			},
+			"required":             []string{"scope", "tagglob", "limit"},
 			"additionalProperties": false,
 		},
 		ToolAnyCallback: func(input any, toolUseData *uctypes.UIMessageDataToolUse) (any, error) {
@@ -368,13 +386,12 @@ func GetNoteSearchToolDefinition() uctypes.ToolDefinition {
 					"type":        "string",
 					"description": "Optional scope to limit search within",
 				},
-				"limit": map[string]any{
+			"limit": map[string]any{
 					"type":        "integer",
-					"default":     20,
-					"description": "Maximum number of matches to return (default: 20, max: 100)",
+					"description": "Maximum number of matches to return (default 20, max 100)",
 				},
 			},
-			"required":             []string{"query"},
+			"required":             []string{"query", "scope", "limit"},
 			"additionalProperties": false,
 		},
 		ToolAnyCallback: func(input any, toolUseData *uctypes.UIMessageDataToolUse) (any, error) {
@@ -524,6 +541,127 @@ func parseNoteSearchInput(input any) (*NoteSearchInput, error) {
 	}
 	if result.Limit <= 0 || result.Limit > 100 {
 		result.Limit = 20
+	}
+	return result, nil
+}
+
+func GetNoteDeleteManyToolDefinition() uctypes.ToolDefinition {
+	return uctypes.ToolDefinition{
+		Name:        "note_delete_many",
+		DisplayName: "Delete Multiple Notes",
+		Description: "Delete multiple notes by id in one call. Pass an array of ids. Skips any ids that don't exist. Returns the actual count deleted. Destructive - requires user approval.",
+		ToolLogName: "gen:note_delete_many",
+		Strict:      true,
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"ids": map[string]any{
+					"type":        "array",
+					"items":       map[string]any{"type": "string"},
+					"description": "Array of note IDs to delete (max 500)",
+				},
+				"workspaceid": map[string]any{
+					"type":        "string",
+					"description": "Optional workspace ID",
+				},
+			},
+			"required":             []string{"ids", "workspaceid"},
+			"additionalProperties": false,
+		},
+		ToolAnyCallback: func(input any, toolUseData *uctypes.UIMessageDataToolUse) (any, error) {
+			parsed, err := parseNoteDeleteManyInput(input)
+			if err != nil {
+				return nil, err
+			}
+			store := aistore.GetMemoryStore()
+			deleted, err := store.DeleteMany(context.Background(), parsed.WorkspaceId, parsed.Ids)
+			if err != nil {
+				return nil, err
+			}
+			return &NoteDeleteManyOutput{Deleted: deleted}, nil
+		},
+		ToolApproval: func(input any) string {
+			return uctypes.ApprovalNeedsApproval
+		},
+		ToolVerifyInput: func(input any, toolUseData *uctypes.UIMessageDataToolUse) error {
+			_, err := parseNoteDeleteManyInput(input)
+			return err
+		},
+	}
+}
+
+func GetNoteDeleteByScopeToolDefinition() uctypes.ToolDefinition {
+	return uctypes.ToolDefinition{
+		Name:        "note_delete_by_scope",
+		DisplayName: "Delete All Notes in Scope",
+		Description: "Delete every note within a scope in one call. Useful for cleanup at the start/end of a session. Destructive - the entire scope is wiped. Requires user approval.",
+		ToolLogName: "gen:note_delete_by_scope",
+		Strict:      true,
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"scope": map[string]any{
+					"type":        "string",
+					"description": "Scope to wipe (e.g. 'temp', 'session-2026-06-28')",
+				},
+				"workspaceid": map[string]any{
+					"type":        "string",
+					"description": "Optional workspace ID",
+				},
+			},
+			"required":             []string{"scope", "workspaceid"},
+			"additionalProperties": false,
+		},
+		ToolAnyCallback: func(input any, toolUseData *uctypes.UIMessageDataToolUse) (any, error) {
+			parsed, err := parseNoteDeleteByScopeInput(input)
+			if err != nil {
+				return nil, err
+			}
+			store := aistore.GetMemoryStore()
+			deleted, err := store.DeleteByScope(context.Background(), parsed.WorkspaceId, parsed.Scope)
+			if err != nil {
+				return nil, err
+			}
+			return &NoteDeleteByScopeOutput{Deleted: deleted}, nil
+		},
+		ToolApproval: func(input any) string {
+			return uctypes.ApprovalNeedsApproval
+		},
+		ToolVerifyInput: func(input any, toolUseData *uctypes.UIMessageDataToolUse) error {
+			_, err := parseNoteDeleteByScopeInput(input)
+			return err
+		},
+	}
+}
+
+func parseNoteDeleteManyInput(input any) (*NoteDeleteManyInput, error) {
+	result := &NoteDeleteManyInput{}
+	if input == nil {
+		return nil, fmt.Errorf("input is required")
+	}
+	if err := utilfn.ReUnmarshal(result, input); err != nil {
+		return nil, fmt.Errorf("invalid input format: %w", err)
+	}
+	if len(result.Ids) == 0 {
+		return nil, fmt.Errorf("ids array is required and must not be empty")
+	}
+	if len(result.Ids) > 500 {
+		return nil, fmt.Errorf("too many ids (max 500)")
+	}
+	return result, nil
+}
+
+func parseNoteDeleteByScopeInput(input any) (*NoteDeleteByScopeInput, error) {
+	result := &NoteDeleteByScopeInput{}
+	if input == nil {
+		return nil, fmt.Errorf("input is required")
+	}
+	if err := utilfn.ReUnmarshal(result, input); err != nil {
+		return nil, fmt.Errorf("invalid input format: %w", err)
+	}
+	result.Scope = strings.TrimSpace(result.Scope)
+	if result.Scope == "" {
+		return nil, fmt.Errorf("scope is required")
 	}
 	return result, nil
 }

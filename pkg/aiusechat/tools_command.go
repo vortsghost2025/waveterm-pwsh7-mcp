@@ -523,7 +523,6 @@ func GetRunInteractiveCommandToolDefinition() uctypes.ToolDefinition {
 					"type":        "integer",
 					"minimum":     1000,
 					"maximum":     600000,
-					"default":     60000,
 					"description": "Timeout in milliseconds. Default 60000 (60s). Min 1000, max 600000 (10 minutes).",
 				},
 			},

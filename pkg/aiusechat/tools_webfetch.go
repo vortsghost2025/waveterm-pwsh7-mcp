@@ -101,16 +101,14 @@ func GetWebFetchToolDefinition() uctypes.ToolDefinition {
 				"format": map[string]any{
 					"type":        "string",
 					"enum":        []string{"text", "markdown", "html"},
-					"default":     "markdown",
-					"description": "The format to return the content in: 'text' (plain text), 'markdown' (converted from HTML), or 'html' (raw HTML)",
+					"description": "The format to return the content in: 'text' (plain text), 'markdown' (converted from HTML), or 'html' (raw HTML). Default: 'markdown'.",
 				},
 				"timeout": map[string]any{
 					"type":         "integer",
-					"default":      30,
-					"description":  "Timeout in seconds (max 120)",
+					"description":  "Timeout in seconds. Default: 30, max: 120.",
 				},
 			},
-			"required":             []string{"url"},
+			"required":             []string{"url", "format", "timeout"},
 			"additionalProperties": false,
 		},
 		ToolCallDesc: func(input any, output any, toolUseData *uctypes.UIMessageDataToolUse) string {

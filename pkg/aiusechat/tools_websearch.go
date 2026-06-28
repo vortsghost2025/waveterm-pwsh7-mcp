@@ -17,7 +17,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 )
 
-const (
+var (
 	WebSearchDefaultNumResults   = 8
 	WebSearchMaxNumResults       = 20
 	WebSearchDefaultTimeout      = 30
@@ -134,25 +134,24 @@ func GetWebSearchToolDefinition() uctypes.ToolDefinition {
 				},
 				"numResults": map[string]any{
 					"type":        "integer",
-					"default":     8,
-					"description": "Number of search results to return (default: 8, max: 20)",
+					"description": "Number of search results to return. Default: 8, max: 20.",
 				},
 				"livecrawl": map[string]any{
 					"type":        "string",
 					"enum":        []string{"fallback", "preferred"},
-					"description": "Live crawl mode - 'fallback': use live crawling as backup if cached content unavailable, 'preferred': prioritize live crawling (default: 'fallback')",
+					"description": "Live crawl mode. 'fallback': use live crawling as backup if cached content unavailable, 'preferred': prioritize live crawling. Default: 'fallback'.",
 				},
 				"type": map[string]any{
 					"type":        "string",
 					"enum":        []string{"auto", "fast", "deep"},
-					"description": "Search type - 'auto': balanced search (default), 'fast': quick results, 'deep': comprehensive search",
+					"description": "Search type. 'auto': balanced search, 'fast': quick results, 'deep': comprehensive search. Default: 'auto'.",
 				},
 				"contextMaxCharacters": map[string]any{
 					"type":        "integer",
-					"description": "Maximum characters for context string optimized for LLMs (default: 10000)",
+					"description": "Maximum characters for context string optimized for LLMs. Default: 10000.",
 				},
 			},
-			"required":             []string{"query"},
+			"required":             []string{"query", "numResults", "livecrawl", "type", "contextMaxCharacters"},
 			"additionalProperties": false,
 		},
 		ToolCallDesc: func(input any, output any, toolUseData *uctypes.UIMessageDataToolUse) string {

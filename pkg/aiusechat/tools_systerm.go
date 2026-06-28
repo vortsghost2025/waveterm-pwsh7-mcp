@@ -163,17 +163,18 @@ func GetSysInfoToolDefinition() uctypes.ToolDefinition {
 			"properties": map[string]any{
 				"hostname": map[string]any{
 					"type":        "boolean",
-					"description": "Include hostname (default: true)",
+					"description": "Include hostname. Default: true.",
 				},
 				"wave": map[string]any{
 					"type":        "boolean",
-					"description": "Include Wave version + directories (default: true)",
+					"description": "Include Wave version + directories. Default: true.",
 				},
 				"full": map[string]any{
 					"type":        "boolean",
-					"description": "Include all available fields (default: false)",
+					"description": "Include all available fields. Default: false.",
 				},
 			},
+			"required":             []string{"hostname", "wave", "full"},
 			"additionalProperties": false,
 		},
 		ToolAnyCallback: func(input any, toolUseData *uctypes.UIMessageDataToolUse) (any, error) {
@@ -221,9 +222,10 @@ func GetSysEnvToolDefinition() uctypes.ToolDefinition {
 				"names": map[string]any{
 					"type":        "array",
 					"items":       map[string]any{"type": "string"},
-					"description": "Optional list of env var names to return. If omitted, returns all.",
+					"description": "List of env var names to return. If omitted or empty, returns all.",
 				},
 			},
+			"required":             []string{"names"},
 			"additionalProperties": false,
 		},
 		ToolAnyCallback: func(input any, toolUseData *uctypes.UIMessageDataToolUse) (any, error) {
@@ -292,15 +294,14 @@ func GetTermSearchScrollbackToolDefinition(tabId string) uctypes.ToolDefinition 
 				},
 				"isregex": map[string]any{
 					"type":        "boolean",
-					"description": "Treat pattern as a regular expression (default false)",
+					"description": "Treat pattern as a regular expression. Default: false.",
 				},
 				"maxmatches": map[string]any{
 					"type":        "integer",
-					"default":     50,
-					"description": "Maximum matches to return (default 50, max 200)",
+					"description": "Maximum matches to return. Default: 50, max: 200.",
 				},
 			},
-			"required":             []string{"widget_id", "pattern"},
+			"required":             []string{"widget_id", "pattern", "isregex", "maxmatches"},
 			"additionalProperties": false,
 		},
 		ToolCallDesc: func(input any, output any, toolUseData *uctypes.UIMessageDataToolUse) string {
@@ -384,7 +385,7 @@ func GetWidgetClearScrollbackToolDefinition(tabId string) uctypes.ToolDefinition
 					"description": "Optional batch mode: array of widget clear operations. When provided, top-level widget_id is ignored. Each operation returns a result in the same order.",
 				},
 			},
-			"required":             []string{},
+			"required":             []string{"widget_id", "operations"},
 			"additionalProperties": false,
 		},
 		ToolCallDesc: func(input any, output any, toolUseData *uctypes.UIMessageDataToolUse) string {

@@ -135,6 +135,7 @@ func GetTsunamiGetDataToolDefinition(block *waveobj.Block, rtInfo *waveobj.ObjRT
 		InputSchema: map[string]any{
 			"type":                 "object",
 			"properties":           map[string]any{},
+			"required":             []string{},
 			"additionalProperties": false,
 		},
 		ToolCallDesc: func(input any, output any, toolUseData *uctypes.UIMessageDataToolUse) string {
@@ -155,11 +156,12 @@ func GetTsunamiGetConfigToolDefinition(block *waveobj.Block, rtInfo *waveobj.Obj
 
 	return &uctypes.ToolDefinition{
 		Name:        toolName,
-		ToolLogName: "tsunami:getconfig",
+		ToolLogName: "tsunami:getdata",
 		Strict:      true,
 		InputSchema: map[string]any{
 			"type":                 "object",
 			"properties":           map[string]any{},
+			"required":             []string{},
 			"additionalProperties": false,
 		},
 		ToolCallDesc: func(input any, output any, toolUseData *uctypes.UIMessageDataToolUse) string {
