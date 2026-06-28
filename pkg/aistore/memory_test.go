@@ -268,3 +268,77 @@ func TestMemoryStoreWorkspacesAreIsolated(t *testing.T) {
 		t.Fatalf("workspaces should be isolated, both have body=%q", rec1.Body)
 	}
 }
+
+func TestMemoryStoreDeleteManyCountsAndSkips(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	id1, _ := store.Put(ctx, MemoryOpts{WorkspaceId: "ws_d", Scope: "x"}, "a")
+	id2, _ := store.Put(ctx, MemoryOpts{WorkspaceId: "ws_d", Scope: "x"}, "b")
+	id3, _ := store.Put(ctx, MemoryOpts{WorkspaceId: "ws_d", Scope: "y"}, "c")
+
+	deleted, err := store.DeleteMany(ctx, "ws_d", []string{id1, id2, "missing-id", id3})
+	if err != nil {
+		t.Fatalf("DeleteMany failed: %v", err)
+	}
+	if deleted != 3 {
+		t.Fatalf("expected 3 deleted, got %d", deleted)
+	}
+	if _, err := store.Get(ctx, "ws_d", id1); err == nil {
+		t.Fatalf("id1 should be gone")
+	}
+	if _, err := store.Get(ctx, "ws_d", id3); err == nil {
+		t.Fatalf("id3 should be gone")
+	}
+}
+
+func TestMemoryStoreDeleteManyEmptyInput(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	deleted, err := store.DeleteMany(ctx, "ws_d2", []string{})
+	if err != nil {
+		t.Fatalf("DeleteMany empty should not err: %v", err)
+	}
+	if deleted != 0 {
+		t.Fatalf("expected 0 deleted, got %d", deleted)
+	}
+}
+
+func TestMemoryStoreDeleteByScope(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	store.Put(ctx, MemoryOpts{WorkspaceId: "ws_s", Scope: "temp"}, "t1")
+	store.Put(ctx, MemoryOpts{WorkspaceId: "ws_s", Scope: "temp"}, "t2")
+	store.Put(ctx, MemoryOpts{WorkspaceId: "ws_s", Scope: "perm"}, "p1")
+
+	deleted, err := store.DeleteByScope(ctx, "ws_s", "temp")
+	if err != nil {
+		t.Fatalf("DeleteByScope failed: %v", err)
+	}
+	if deleted != 2 {
+		t.Fatalf("expected 2 temp notes deleted, got %d", deleted)
+	}
+	records, _, err := store.List(ctx, MemoryListOpts{WorkspaceId: "ws_s"})
+	if err != nil {
+		t.Fatalf("List failed: %v", err)
+	}
+	if len(records) != 1 {
+		t.Fatalf("expected 1 remaining, got %d", len(records))
+	}
+	if records[0].Scope != "perm" {
+		t.Fatalf("expected remaining to be scope=perm, got %s", records[0].Scope)
+	}
+}
+
+func TestMemoryStoreDeleteByScopeEmpty(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	deleted, err := store.DeleteByScope(ctx, "ws_empty", "nope")
+	if err != nil {
+		t.Fatalf("DeleteByScope empty should not err: %v", err)
+	}
+	if deleted != 0 {
+		t.Fatalf("expected 0 deleted, got %d", deleted)
+	}
+}

@@ -316,6 +316,53 @@ func (s *MemoryStore) Delete(ctx context.Context, workspaceId, id string) (bool,
 	return true, nil
 }
 
+func (s *MemoryStore) DeleteMany(ctx context.Context, workspaceId string, ids []string) (int, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	if err := s.ensureWorkspaceLoaded(workspaceId); err != nil {
+		return 0, err
+	}
+	wsRecords := s.records[workspaceId]
+	deleted := 0
+	for _, id := range ids {
+		if _, ok := wsRecords[id]; !ok {
+			continue
+		}
+		delete(wsRecords, id)
+		if err := s.deleteRecordFile(workspaceId, id); err != nil && !os.IsNotExist(err) {
+			continue
+		}
+		deleted++
+	}
+	return deleted, nil
+}
+
+func (s *MemoryStore) DeleteByScope(ctx context.Context, workspaceId, scope string) (int, error) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	if err := s.ensureWorkspaceLoaded(workspaceId); err != nil {
+		return 0, err
+	}
+	wsRecords := s.records[workspaceId]
+	deleted := 0
+	for id, rec := range wsRecords {
+		if scope != "" && rec.Scope != scope {
+			continue
+		}
+		delete(wsRecords, id)
+		if err := s.deleteRecordFile(workspaceId, id); err != nil && !os.IsNotExist(err) {
+			continue
+		}
+		deleted++
+	}
+	return deleted, nil
+}
+
 func (s *MemoryStore) Search(ctx context.Context, workspaceId, scope, query string, limit int) ([]MemorySearchMatch, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
