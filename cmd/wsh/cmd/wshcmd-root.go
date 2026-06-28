@@ -8,9 +8,11 @@ import (
 	"io"
 	"os"
 	"runtime/debug"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/wavetermdev/waveterm/pkg/util/shellutil"
+	"github.com/wavetermdev/waveterm/pkg/wavebase"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc/wshclient"
@@ -85,7 +87,12 @@ func OutputHelpMessage(cmd *cobra.Command) {
 func preRunSetupRpcClient(cmd *cobra.Command, args []string) error {
 	jwtToken := os.Getenv(wshutil.WaveJwtTokenVarName)
 	if jwtToken == "" {
-		return fmt.Errorf("wsh must be run inside a Wave-managed SSH session (WAVETERM_JWT not found)")
+		swapToken := os.Getenv(wavebase.WaveSwapTokenVarName)
+		if swapToken != "" {
+			_, err := setupRpcClientWithToken(swapToken)
+			return err
+		}
+		return fmt.Errorf("wsh must be run inside a Wave-managed SSH session (%s not found)", wshutil.WaveJwtTokenVarName)
 	}
 	err := setupRpcClient(nil, jwtToken)
 	if err != nil {
@@ -192,21 +199,44 @@ func resolveSimpleId(id string) (*waveobj.ORef, error) {
 		return &orefObj, nil
 	}
 	blockId := os.Getenv("WAVETERM_BLOCKID")
-	if blockId == "" {
-		return nil, fmt.Errorf("no WAVETERM_BLOCKID env var set")
+	if blockId != "" {
+		rtnData, err := wshclient.ResolveIdsCommand(RpcClient, wshrpc.CommandResolveIdsData{
+			BlockId: blockId,
+			Ids:     []string{id},
+		}, &wshrpc.RpcOpts{Timeout: 2000})
+		if err == nil {
+			oref, ok := rtnData.ResolvedIds[id]
+			if ok {
+				return &oref, nil
+			}
+		}
 	}
-	rtnData, err := wshclient.ResolveIdsCommand(RpcClient, wshrpc.CommandResolveIdsData{
-		BlockId: blockId,
-		Ids:     []string{id},
-	}, &wshrpc.RpcOpts{Timeout: 2000})
-	if err != nil {
-		return nil, fmt.Errorf("error resolving ids: %v", err)
+	if len(id) >= 8 && len(id) <= 36 {
+		entries, err := wshclient.BlocksListCommand(RpcClient, wshrpc.BlocksListRequest{}, &wshrpc.RpcOpts{Timeout: 10000})
+		if err == nil {
+			var matches []string
+			for _, b := range entries {
+				if strings.HasPrefix(b.BlockId, id) {
+					matches = append(matches, b.BlockId)
+					if len(matches) >= 2 && len(id) < 36 {
+						break
+					}
+				}
+			}
+			if len(matches) == 1 {
+				oref := waveobj.MakeORef(waveobj.OType_Block, matches[0])
+				return &oref, nil
+			}
+			if len(matches) > 1 && len(id) >= 36 {
+				oref := waveobj.MakeORef(waveobj.OType_Block, matches[0])
+				return &oref, nil
+			}
+			if len(matches) > 1 {
+				return nil, fmt.Errorf("ambiguous prefix %q (matched %d blocks), use a longer id", id, len(matches))
+			}
+		}
 	}
-	oref, ok := rtnData.ResolvedIds[id]
-	if !ok {
-		return nil, fmt.Errorf("id not found: %q", id)
-	}
-	return &oref, nil
+	return nil, fmt.Errorf("id not found: %q", id)
 }
 
 func getTabIdFromEnv() string {
