@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"fmt"
 	"os"
 	"sync"
@@ -157,6 +158,22 @@ func rpcSendInput(blockId string, text string, enter bool) error {
 	}
 	opts := &wshrpc.RpcOpts{Timeout: 10000}
 	return wshclient.AgentSendInputCommand(client, data, opts)
+}
+
+func rpcSendKey(blockId, sequence string, sigName string) error {
+	client, err := ensureAgentClient()
+	if err != nil {
+		return err
+	}
+	data := wshrpc.CommandBlockInputData{BlockId: blockId}
+	if sigName != "" {
+		data.SigName = sigName
+	}
+	if sequence != "" {
+		data.InputData64 = base64.StdEncoding.EncodeToString([]byte(sequence))
+	}
+	opts := &wshrpc.RpcOpts{Timeout: 5000}
+	return wshclient.ControllerInputCommand(client, data, opts)
 }
 
 func rpcRunCommand(command string, timeoutMs int) (*wshrpc.AgentRunCommandRtnData, error) {

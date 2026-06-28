@@ -223,3 +223,79 @@ func callWidgetClearScrollback(args map[string]any) ToolCallResult {
 	b, _ := json.Marshal(map[string]any{"cleared": true})
 	return ToolCallResult{Content: []ToolContent{{Type: "text", Text: string(b)}}}
 }
+
+func resolveMcpSendKey(key string) (sequence string, isSignal bool, sigName string, err error) {
+	switch key {
+	case "enter":
+		return "\r", false, "", nil
+	case "tab":
+		return "\t", false, "", nil
+	case "space":
+		return " ", false, "", nil
+	case "escape", "esc":
+		return "\x1b", false, "", nil
+	case "backspace":
+		return "\x7f", false, "", nil
+	case "delete":
+		return "\x1b[3~", false, "", nil
+	case "home":
+		return "\x1b[H", false, "", nil
+	case "end":
+		return "\x1b[F", false, "", nil
+	case "pageup":
+		return "\x1b[5~", false, "", nil
+	case "pagedown":
+		return "\x1b[6~", false, "", nil
+	case "arrowup", "up":
+		return "\x1b[A", false, "", nil
+	case "arrowdown", "down":
+		return "\x1b[B", false, "", nil
+	case "arrowright", "right":
+		return "\x1b[C", false, "", nil
+	case "arrowleft", "left":
+		return "\x1b[D", false, "", nil
+	case "ctrlc", "ctrl-c":
+		return "", true, "SIGINT", nil
+	case "ctrlz", "ctrl-z":
+		return "", true, "SIGTSTP", nil
+	case "ctrld", "ctrl-d":
+		return "\x04", false, "", nil
+	case "ctrlbackslash", "ctrl-\\", "ctrlbreak":
+		return "", true, "SIGQUIT", nil
+	case "sigterm":
+		return "", true, "SIGTERM", nil
+	case "sigkill":
+		return "", true, "SIGKILL", nil
+	default:
+		return "", false, "", fmt.Errorf("unsupported key %q", key)
+	}
+}
+
+func callTermSendKey(args map[string]any) ToolCallResult {
+	widgetId, _ := args["widget_id"].(string)
+	if widgetId == "" {
+		return errResult("missing or empty 'widget_id' argument")
+	}
+	key, _ := args["key"].(string)
+	if key == "" {
+		return errResult("missing or empty 'key' argument")
+	}
+	sequence, isSignal, sigName, err := resolveMcpSendKey(key)
+	if err != nil {
+		return errResult(err.Error())
+	}
+	err = rpcSendKey(widgetId, sequence, sigName)
+	if err != nil {
+		return errResult(fmt.Sprintf("rpc send key failed: %s", err.Error()))
+	}
+	out := map[string]any{
+		"success":   true,
+		"widget_id": widgetId,
+		"key":       key,
+		"sequence":  sequence,
+		"signal":    isSignal,
+		"signame":   sigName,
+	}
+	b, _ := json.Marshal(out)
+	return ToolCallResult{Content: []ToolContent{{Type: "text", Text: string(b)}}}
+}

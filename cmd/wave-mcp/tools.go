@@ -309,6 +309,25 @@ func defineTools() []ToolDefinition {
 			},
 		},
 		{
+			Name:        "term_send_key",
+			Description: "Send a special key (Enter, Tab, Escape, arrows, Home/End, PageUp/PageDown, Backspace, Delete, or signal keys Ctrl+C/Ctrl+Z/Ctrl+D/SIGTERM/SIGKILL) to a terminal widget. Useful for TUI apps. Destructive when sending signal keys.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"widget_id": map[string]any{
+						"type":        "string",
+						"description": "The 8-char block/widget ID of the terminal",
+					},
+					"key": map[string]any{
+						"type":        "string",
+						"description": "Key to send (e.g., enter, tab, escape, arrowup, ctrlc, sigterm, sigkill)",
+					},
+				},
+				"required":             []string{"widget_id", "key"},
+				"additionalProperties": false,
+			},
+		},
+		{
 			Name:        "term_list_widgets",
 			Description: "List available terminal widgets in Wave. Returns widget IDs, view type, working directory, and shell state for each terminal block.",
 			InputSchema: map[string]any{
@@ -410,6 +429,34 @@ func defineTools() []ToolDefinition {
 			},
 		},
 		{
+			Name:        "note_delete_many",
+			Description: "Delete multiple notes by id in one call. Destructive.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"ids": map[string]any{
+						"type":        "array",
+						"items":       map[string]any{"type": "string"},
+						"description": "Array of note IDs to delete (max 500)",
+					},
+				},
+				"required":             []string{"ids"},
+				"additionalProperties": false,
+			},
+		},
+		{
+			Name:        "note_delete_by_scope",
+			Description: "Delete every note in a scope. Destructive.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"scope": map[string]any{"type": "string", "description": "Scope to wipe"},
+				},
+				"required":             []string{"scope"},
+				"additionalProperties": false,
+			},
+		},
+		{
 			Name:        "tool_list",
 			Description: "List all available tools with their names and descriptions.",
 			InputSchema: map[string]any{
@@ -427,6 +474,32 @@ func defineTools() []ToolDefinition {
 					"name": map[string]any{"type": "string", "description": "Tool name to look up"},
 				},
 				"required":             []string{"name"},
+				"additionalProperties": false,
+			},
+		},
+		{
+			Name:        "audit_query",
+			Description: "Query the persistent tool-call audit log. Filter by tool name, status (ok/error/started), and time window. Returns recent invokes.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"toolname": map[string]any{"type": "string", "description": "Filter by exact tool name"},
+					"status":   map[string]any{"type": "string", "description": "Filter by status"},
+					"since":    map[string]any{"type": "string", "description": "ISO-8601 timestamp or duration like 1h/30m"},
+					"until":    map[string]any{"type": "string", "description": "ISO-8601 timestamp"},
+					"limit":    map[string]any{"type": "integer", "default": 50, "description": "Max entries (default 50, max 500)"},
+				},
+				"additionalProperties": false,
+			},
+		},
+		{
+			Name:        "audit_tail",
+			Description: "Tail the recent tool-call audit log (raw ndjson lines).",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"maxlines": map[string]any{"type": "integer", "default": 50, "description": "Lines to return (default 50, max 200)"},
+				},
 				"additionalProperties": false,
 			},
 		},
@@ -518,6 +591,8 @@ func handleToolCall(name string, args map[string]any) ToolCallResult {
 		return callTermGetScrollback(args)
 	case "term_send_input":
 		return callTermSendInput(args)
+	case "term_send_key":
+		return callTermSendKey(args)
 	case "term_list_widgets":
 		return callTermListWidgets(args)
 	case "note_put":
@@ -534,15 +609,22 @@ func handleToolCall(name string, args map[string]any) ToolCallResult {
 		return ToolCallResult{Content: []ToolContent{{Type: "text", Text: callToolList()}}}
 	case "tool_schema":
 		return callToolSchema(args)
+	case "audit_query":
+		return callAuditQuery(args)
+	case "audit_tail":
+		return callAuditTail(args)
 	case "sys_info":
 		return callSysInfo(args)
 	case "sys_env":
-		return callSysEnv(args)
 		return callSysEnv(args)
 	case "term_search_scrollback":
 		return callTermSearchScrollback(args)
 	case "widget_clear_scrollback":
 		return callWidgetClearScrollback(args)
+	case "note_delete_many":
+		return callNoteDeleteMany(args)
+	case "note_delete_by_scope":
+		return callNoteDeleteByScope(args)
 	default:
 		return ToolCallResult{
 			IsError: true,
@@ -1381,5 +1463,145 @@ func callSysEnv(args map[string]any) ToolCallResult {
 	data, _ := json.Marshal(env)
 	return ToolCallResult{
 		Content: []ToolContent{{Type: "text", Text: string(data)}},
+	}
+}
+
+func callNoteDeleteMany(args map[string]any) ToolCallResult {
+	workspaceId := ""
+	if w, ok := args["workspaceid"].(string); ok {
+		workspaceId = w
+	}
+	rawIds, ok := args["ids"].([]any)
+	if !ok {
+		return errResult("'ids' must be an array of strings")
+	}
+	if len(rawIds) == 0 {
+		return errResult("'ids' array is required and must not be empty")
+	}
+	if len(rawIds) > 500 {
+		return errResult("too many ids (max 500)")
+	}
+	ids := make([]string, 0, len(rawIds))
+	for _, v := range rawIds {
+		if s, ok := v.(string); ok && s != "" {
+			ids = append(ids, s)
+		}
+	}
+	if len(ids) == 0 {
+		return errResult("'ids' contains no valid string ids")
+	}
+	store := aistore.GetMemoryStore()
+	deleted, err := store.DeleteMany(context.Background(), workspaceId, ids)
+	if err != nil {
+		return errResult(err.Error())
+	}
+	return ToolCallResult{
+		Content: []ToolContent{{Type: "text", Text: fmt.Sprintf("Deleted %d of %d notes.", deleted, len(ids))}},
+	}
+}
+
+func callNoteDeleteByScope(args map[string]any) ToolCallResult {
+	workspaceId := ""
+	if w, ok := args["workspaceid"].(string); ok {
+		workspaceId = w
+	}
+	scopeRaw, ok := args["scope"]
+	if !ok {
+		return errResult("missing 'scope' argument")
+	}
+	scope, ok := scopeRaw.(string)
+	if !ok {
+		return errResult("'scope' must be a string")
+	}
+	scope = strings.TrimSpace(scope)
+	if scope == "" {
+		return errResult("'scope' cannot be empty")
+	}
+	store := aistore.GetMemoryStore()
+	deleted, err := store.DeleteByScope(context.Background(), workspaceId, scope)
+	if err != nil {
+		return errResult(err.Error())
+	}
+	return ToolCallResult{
+		Content: []ToolContent{{Type: "text", Text: fmt.Sprintf("Deleted %d notes from scope %q.", deleted, scope)}},
+	}
+}
+
+func parseAuditFlexibleTime(s string) (int64, error) {
+	if t, err := time.Parse(time.RFC3339, s); err == nil {
+		return t.UnixMilli(), nil
+	}
+	if d, err := time.ParseDuration(s); err == nil {
+		return time.Now().Add(-d).UnixMilli(), nil
+	}
+	return 0, fmt.Errorf("expected ISO-8601 timestamp or duration like '1h', got %q", s)
+}
+
+func callAuditQuery(args map[string]any) ToolCallResult {
+	q := aistore.ToolCallLogQuery{}
+	if v, ok := args["toolname"].(string); ok {
+		q.ToolName = v
+	}
+	if v, ok := args["status"].(string); ok {
+		q.Status = v
+	}
+	if v, ok := args["since"].(string); ok && v != "" {
+		ms, err := parseAuditFlexibleTime(v)
+		if err != nil {
+			return errResult(err.Error())
+		}
+		q.SinceMs = ms
+	}
+	if v, ok := args["until"].(string); ok && v != "" {
+		ms, err := parseAuditFlexibleTime(v)
+		if err != nil {
+			return errResult(err.Error())
+		}
+		q.UntilMs = ms
+	}
+	if v, ok := args["limit"].(float64); ok {
+		q.Limit = int(v)
+	}
+	if q.Limit <= 0 {
+		q.Limit = 50
+	}
+	if q.Limit > 500 {
+		q.Limit = 500
+	}
+	entries, err := aistore.GetAuditLogger().Query(context.Background(), q)
+	if err != nil {
+		return errResult(err.Error())
+	}
+	data, _ := json.Marshal(map[string]any{
+		"count":   len(entries),
+		"entries": entries,
+	})
+	return ToolCallResult{
+		Content: []ToolContent{{Type: "text", Text: string(data)}},
+	}
+}
+
+func callAuditTail(args map[string]any) ToolCallResult {
+	maxLines := 50
+	if v, ok := args["maxlines"].(float64); ok {
+		maxLines = int(v)
+		if maxLines <= 0 {
+			maxLines = 50
+		}
+		if maxLines > 200 {
+			maxLines = 200
+		}
+	}
+	out, err := aistore.GetAuditLogger().Tail(context.Background(), "", "", maxLines)
+	if err != nil {
+		return errResult(err.Error())
+	}
+	if out == "" {
+		return ToolCallResult{
+			Content: []ToolContent{{Type: "text", Text: "(empty)"}},
+		}
+	}
+	return ToolCallResult{
+		Content: []ToolContent{{Type: "text", Text: out}},
 	}
 }
