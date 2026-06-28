@@ -233,6 +233,8 @@ type WshRpcInterface interface {
 	MemoryListCommand(ctx context.Context, data MemoryListRequest) (*MemoryListResponse, error)
 	MemoryDeleteCommand(ctx context.Context, data MemoryDeleteRequest) (*MemoryDeleteResponse, error)
 	MemorySearchCommand(ctx context.Context, data MemorySearchRequest) (*MemorySearchResponse, error)
+	MemoryDeleteManyCommand(ctx context.Context, data MemoryDeleteManyRequest) (*MemoryDeleteManyResponse, error)
+	MemoryDeleteByScopeCommand(ctx context.Context, data MemoryDeleteByScopeRequest) (*MemoryDeleteByScopeResponse, error)
 }
 
 // for frontend
@@ -1087,6 +1089,25 @@ type MemorySearchRequest struct {
 
 type MemorySearchResponse struct {
 	Matches []aistore.MemorySearchMatch `json:"matches"`
+}
+
+type MemoryDeleteManyRequest struct {
+	WorkspaceId string   `json:"workspaceid,omitempty"`
+	Ids         []string `json:"ids"`
+}
+
+type MemoryDeleteManyResponse struct {
+	Deleted int      `json:"deleted"`
+	Skipped []string `json:"skipped,omitempty"`
+}
+
+type MemoryDeleteByScopeRequest struct {
+	WorkspaceId string `json:"workspaceid,omitempty"`
+	Scope       string `json:"scope"`
+}
+
+type MemoryDeleteByScopeResponse struct {
+	Deleted int `json:"deleted"`
 }
 
 type CommandTermSearchScrollbackData struct {

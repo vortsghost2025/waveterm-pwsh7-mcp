@@ -675,6 +675,18 @@ func MemoryDeleteCommand(w *wshutil.WshRpc, data wshrpc.MemoryDeleteRequest, opt
 	return resp, err
 }
 
+// command "memorydeletebyscope", wshserver.MemoryDeleteByScopeCommand
+func MemoryDeleteByScopeCommand(w *wshutil.WshRpc, data wshrpc.MemoryDeleteByScopeRequest, opts *wshrpc.RpcOpts) (*wshrpc.MemoryDeleteByScopeResponse, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.MemoryDeleteByScopeResponse](w, "memorydeletebyscope", data, opts)
+	return resp, err
+}
+
+// command "memorydeletemany", wshserver.MemoryDeleteManyCommand
+func MemoryDeleteManyCommand(w *wshutil.WshRpc, data wshrpc.MemoryDeleteManyRequest, opts *wshrpc.RpcOpts) (*wshrpc.MemoryDeleteManyResponse, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.MemoryDeleteManyResponse](w, "memorydeletemany", data, opts)
+	return resp, err
+}
+
 // command "memoryget", wshserver.MemoryGetCommand
 func MemoryGetCommand(w *wshutil.WshRpc, data wshrpc.MemoryGetRequest, opts *wshrpc.RpcOpts) (*wshrpc.MemoryGetResponse, error) {
 	resp, err := sendRpcRequestCallHelper[*wshrpc.MemoryGetResponse](w, "memoryget", data, opts)

@@ -10,12 +10,14 @@ var agentAllowedCommands = map[string]struct{}{
 	"agentruncommand":     {},
 	"agentlistblocks":     {},
 	"agentlistterminals":  {},
-	"memoryput":          {},
-	"memoryget":          {},
-	"memorylist":         {},
-	"memorydelete":       {},
-	"memorysearch":       {},
-	"aisendmessage":      {},
+	"memoryput":             {},
+	"memoryget":             {},
+	"memorylist":            {},
+	"memorydelete":          {},
+	"memorysearch":          {},
+	"memorydeletemany":      {},
+	"memorydeletebyscope":   {},
+	"aisendmessage":         {},
 }
 
 func isAgentAllowedCommand(command string) bool {

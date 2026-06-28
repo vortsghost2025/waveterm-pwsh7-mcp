@@ -2195,3 +2195,51 @@ func (ws *WshServer) MemorySearchCommand(ctx context.Context, data wshrpc.Memory
 	}
 	return &wshrpc.MemorySearchResponse{Matches: matches}, nil
 }
+
+func (ws *WshServer) MemoryDeleteManyCommand(ctx context.Context, data wshrpc.MemoryDeleteManyRequest) (*wshrpc.MemoryDeleteManyResponse, error) {
+	rpcCtx := wshutil.GetRpcContextFromCtx(ctx)
+	if rpcCtx == nil {
+		return nil, fmt.Errorf("not authenticated")
+	}
+	if !rpcCtx.IsRouter && !rpcCtx.IsAgent {
+		return nil, fmt.Errorf("not authorized: only router or agent clients can access memory")
+	}
+	if len(data.Ids) == 0 {
+		return &wshrpc.MemoryDeleteManyResponse{Deleted: 0}, nil
+	}
+	if len(data.Ids) > 500 {
+		return nil, fmt.Errorf("too many ids (max 500)")
+	}
+	store := aistore.GetMemoryStore()
+	deleted, err := store.DeleteMany(ctx, data.WorkspaceId, data.Ids)
+	if err != nil {
+		return nil, err
+	}
+	deletedSet := make(map[string]bool)
+	skipped := make([]string, 0)
+	for _, id := range data.Ids {
+		if !deletedSet[id] {
+			deletedSet[id] = true
+		}
+	}
+	return &wshrpc.MemoryDeleteManyResponse{Deleted: deleted, Skipped: skipped}, nil
+}
+
+func (ws *WshServer) MemoryDeleteByScopeCommand(ctx context.Context, data wshrpc.MemoryDeleteByScopeRequest) (*wshrpc.MemoryDeleteByScopeResponse, error) {
+	rpcCtx := wshutil.GetRpcContextFromCtx(ctx)
+	if rpcCtx == nil {
+		return nil, fmt.Errorf("not authenticated")
+	}
+	if !rpcCtx.IsRouter && !rpcCtx.IsAgent {
+		return nil, fmt.Errorf("not authorized: only router or agent clients can access memory")
+	}
+	if data.Scope == "" {
+		return nil, fmt.Errorf("scope is required")
+	}
+	store := aistore.GetMemoryStore()
+	deleted, err := store.DeleteByScope(ctx, data.WorkspaceId, data.Scope)
+	if err != nil {
+		return nil, err
+	}
+	return &wshrpc.MemoryDeleteByScopeResponse{Deleted: deleted}, nil
+}
