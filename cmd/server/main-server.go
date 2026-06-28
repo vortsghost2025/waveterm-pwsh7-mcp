@@ -32,6 +32,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/util/shellutil"
 	"github.com/wavetermdev/waveterm/pkg/util/sigutil"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
+	"github.com/wavetermdev/waveterm/pkg/aistore"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wcloud"
@@ -479,6 +480,7 @@ func main() {
 		log.Printf("error ensuring wave home dir: %v\n", err)
 		return
 	}
+	aistore.SetDefaultDataDir(wavebase.GetWaveDataDir)
 	err = wavebase.EnsureWaveDBDir()
 	if err != nil {
 		log.Printf("error ensuring wave db dir: %v\n", err)

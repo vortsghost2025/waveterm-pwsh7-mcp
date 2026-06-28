@@ -4,6 +4,7 @@
 package shellexec
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -22,6 +23,7 @@ import (
 type ConnInterface interface {
 	Kill()
 	KillGraceful(time.Duration)
+	SignalByName(sigName string) error
 	Wait() error
 	Start() error
 	ExitCode() int
@@ -52,6 +54,13 @@ func MakeCmdWrap(cmd *exec.Cmd, cmdPty pty.Pty, isShell bool) CmdWrap {
 
 func (cw CmdWrap) Kill() {
 	cw.Cmd.Process.Kill()
+}
+
+func (cw CmdWrap) SignalByName(sigName string) error {
+	if cw.Cmd.Process == nil {
+		return fmt.Errorf("process not started")
+	}
+	return unixutil.SendSignalByName(cw.Cmd.Process.Pid, sigName)
 }
 
 func (cw CmdWrap) Wait() error {
@@ -222,7 +231,25 @@ func (sw SessionWrap) StderrPipe() (io.ReadCloser, error) {
 }
 
 func (sw SessionWrap) SetSize(h int, w int) error {
+	if sw.Session == nil {
+		return fmt.Errorf("session is nil")
+	}
 	return sw.Session.WindowChange(h, w)
+}
+
+func (sw SessionWrap) SignalByName(sigName string) error {
+	if sw.Session == nil {
+		return fmt.Errorf("session is nil")
+	}
+	sig := unixutil.ParseSignal(sigName)
+	if sig == nil {
+		return fmt.Errorf("unsupported signal %q", sigName)
+	}
+	sshSig := ssh.Signal(unixutil.GetSignalName(sig))
+	if sshSig == "" {
+		return fmt.Errorf("unsupported SSH signal %q", sigName)
+	}
+	return sw.Session.Signal(sshSig)
 }
 
 type WslCmdWrap struct {
@@ -265,4 +292,16 @@ func (wcw WslCmdWrap) KillGraceful(timeout time.Duration) {
 **/
 func (wcw WslCmdWrap) SetSize(w int, h int) error {
 	return nil
+}
+
+func (wcw WslCmdWrap) SignalByName(sigName string) error {
+	sig := unixutil.ParseSignal(sigName)
+	if sig == nil {
+		return fmt.Errorf("unsupported signal %q", sigName)
+	}
+	process := wcw.WslCmd.GetProcess()
+	if process == nil {
+		return fmt.Errorf("process not available")
+	}
+	return process.Signal(sig)
 }

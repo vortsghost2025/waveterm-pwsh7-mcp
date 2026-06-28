@@ -17,6 +17,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/tsunamiutil"
 	"github.com/wavetermdev/waveterm/pkg/utilds"
+	"github.com/wavetermdev/waveterm/pkg/util/unixutil"
 	"github.com/wavetermdev/waveterm/pkg/waveappstore"
 	"github.com/wavetermdev/waveterm/pkg/waveapputil"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
@@ -289,7 +290,26 @@ func (c *TsunamiController) GetConnName() string {
 }
 
 func (c *TsunamiController) SendInput(input *BlockInputUnion) error {
-	return fmt.Errorf("tsunami controller send input not implemented")
+	if input == nil {
+		return nil
+	}
+	proc := c.tsunamiProc
+	if proc == nil {
+		return fmt.Errorf("tsunami process not running")
+	}
+	if proc.Cmd == nil {
+		return fmt.Errorf("tsunami command not available")
+	}
+
+	if len(input.InputData) > 0 && proc.StdinWriter != nil {
+		proc.StdinWriter.Write(input.InputData)
+	}
+	if input.SigName != "" {
+		if proc.Cmd.Process != nil {
+			_ = unixutil.SendSignalByName(proc.Cmd.Process.Pid, input.SigName)
+		}
+	}
+	return nil
 }
 
 func runTsunamiAppBinary(ctx context.Context, appBinPath string, appPath string, blockMeta waveobj.MetaMapType) (*TsunamiAppProc, error) {

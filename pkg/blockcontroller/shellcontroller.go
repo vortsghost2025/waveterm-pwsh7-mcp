@@ -580,6 +580,9 @@ func (bc *ShellController) manageRunningShellProcess(shellProc *shellexec.ShellP
 			if ic.TermSize != nil {
 				updateTermSize(shellProc, bc.BlockId, *ic.TermSize)
 			}
+			if ic.SigName != "" {
+				shellProc.Cmd.SignalByName(ic.SigName)
+			}
 		}
 	}()
 	go func() {
