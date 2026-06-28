@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/aiusechat/uctypes"
+	"github.com/wavetermdev/waveterm/pkg/secretstore"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 )
 
@@ -223,7 +224,13 @@ func executeWebSearch(params *WebSearchToolInput) (*WebSearchToolOutput, error) 
 
 	apiKey := os.Getenv(WebSearchEnvAPIKey)
 	if apiKey == "" {
-		return nil, fmt.Errorf("EXA_API_KEY environment variable not set")
+		secret, exists, err := secretstore.GetSecret("EXA_KEY")
+		if err == nil && exists && secret != "" {
+			apiKey = secret
+		}
+	}
+	if apiKey == "" {
+		return nil, fmt.Errorf("EXA_API_KEY environment variable not set (also checked secret store EXA_KEY)")
 	}
 	req.Header.Set("x-api-key", apiKey)
 
