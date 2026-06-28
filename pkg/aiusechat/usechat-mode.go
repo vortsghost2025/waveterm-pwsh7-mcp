@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"regexp"
+	"strings"
 
 	"github.com/wavetermdev/waveterm/pkg/aiusechat/aiutil"
 	"github.com/wavetermdev/waveterm/pkg/aiusechat/uctypes"
@@ -36,6 +37,7 @@ const (
 	GroqAPITokenSecretName        = "GROQ_KEY"
 	AzureOpenAIAPITokenSecretName = "AZURE_OPENAI_KEY"
 	GoogleAIAPITokenSecretName    = "GOOGLE_AI_KEY"
+	NVIDIAAPITokenSecretName      = "NVIDIA_KEY"
 )
 
 func resolveAIMode(requestedMode string, premium bool) (string, *wconfig.AIModeConfigType, error) {
@@ -82,7 +84,11 @@ func applyProviderDefaults(config *wconfig.AIModeConfigType) {
 			}
 		}
 		if config.APITokenSecretName == "" {
-			config.APITokenSecretName = OpenAIAPITokenSecretName
+			if strings.Contains(config.Endpoint, "nvidia.com") {
+				config.APITokenSecretName = NVIDIAAPITokenSecretName
+			} else {
+				config.APITokenSecretName = OpenAIAPITokenSecretName
+			}
 		}
 		if len(config.Capabilities) == 0 {
 			if isO1Model(config.Model) {

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/aiusechat/uctypes"
+	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wcore"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc"
@@ -339,6 +340,87 @@ func GetTermSendInputToolDefinition(tabId string) uctypes.ToolDefinition {
 			}
 
 			return &TermSendInputToolOutput{Success: true}, nil
+		},
+	}
+}
+
+func GetTermSendKeyToolDefinition(tabId string) uctypes.ToolDefinition {
+	return uctypes.ToolDefinition{
+		Name:        "term_send_key",
+		DisplayName: "Send Special Key to Terminal",
+		Description: "Send a special key press (Tab, Escape, arrows, Home/End, PageUp/PageDown, Backspace, Delete, or signal keys). " +
+			"Useful for interacting with TUI apps that don't accept raw text input. " +
+			"Enter and signal keys (ctrlc, ctrlz, ctrld, ctrlbackslash, sigterm, sigkill) require user approval because they can execute pending commands or interrupt processes. " +
+			"To send text with Enter (e.g., submitting a message or command), use term_send_input with \"enter\": true instead.",
+		ToolLogName: "term:sendkey",
+		Strict:      true,
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"widget_id": map[string]any{
+					"type":        "string",
+					"description": "8-character widget ID of the terminal widget",
+				},
+				"key": map[string]any{
+					"type":        "string",
+					"description": "Key to send. Safe keys: tab, escape/esc, space, backspace, delete, home, end, pageup, pagedown, arrowup/up, arrowdown/down, arrowleft/left, arrowright/right. Dangerous (approval required): enter, ctrlc, ctrlz, ctrld, ctrlbackslash, sigterm, sigkill.",
+				},
+			},
+			"required":             []string{"widget_id", "key"},
+			"additionalProperties": false,
+		},
+		ToolCallDesc: func(input any, output any, toolUseData *uctypes.UIMessageDataToolUse) string {
+			parsed, err := parseTermSendKeyInput(input)
+			if err != nil {
+				return fmt.Sprintf("error parsing input: %v", err)
+			}
+			return fmt.Sprintf("sending key %q to terminal %s", parsed.Key, parsed.WidgetId)
+		},
+		ToolAnyCallback: func(input any, toolUseData *uctypes.UIMessageDataToolUse) (any, error) {
+			parsed, err := parseTermSendKeyInput(input)
+			if err != nil {
+				return nil, err
+			}
+			ctx, cancelFn := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancelFn()
+			fullBlockId, err := wcore.ResolveBlockIdFromPrefix(ctx, tabId, parsed.WidgetId)
+			if err != nil {
+				return nil, fmt.Errorf("failed to resolve widget %s: %w", parsed.WidgetId, err)
+			}
+			sequence, isSignal, sigName, err := ResolvedSendKeySequence(parsed.Key)
+			if err != nil {
+				return nil, err
+			}
+			req := wshrpc.CommandBlockInputData{BlockId: fullBlockId}
+			if isSignal {
+				req.SigName = sigName
+			} else if sequence != "" {
+				req.InputData64 = base64.StdEncoding.EncodeToString([]byte(sequence))
+			} else {
+				return nil, fmt.Errorf("key %q resolved to empty sequence", parsed.Key)
+			}
+			err = wshclient.ControllerInputCommand(
+				wshclient.GetBareRpcClient(),
+				req,
+				nil,
+			)
+			if err != nil {
+				return nil, fmt.Errorf("failed to send key to terminal: %w", err)
+			}
+			return &SendKeyOutput{Sent: true, Sequence: sequence}, nil
+		},
+		ToolApproval: func(input any) string {
+			if input == nil {
+				return uctypes.ApprovalAutoApproved
+			}
+			parsed, err := parseTermSendKeyInput(input)
+			if err != nil {
+				return uctypes.ApprovalAutoApproved
+			}
+			if IsDangerousKey(parsed.Key) {
+				return uctypes.ApprovalNeedsApproval
+			}
+			return uctypes.ApprovalAutoApproved
 		},
 	}
 }
@@ -1153,4 +1235,24 @@ func GetTermRunCommandToolDefinition(tabId string) uctypes.ToolDefinition {
 			return executeTermRunCommand(tabId, parsed)
 		},
 	}
+}
+
+func parseTermSendKeyInput(input any) (*SendKeyInput, error) {
+	result := &SendKeyInput{}
+	if input == nil {
+		return nil, fmt.Errorf("input is required")
+	}
+	if err := utilfn.ReUnmarshal(result, input); err != nil {
+		return nil, fmt.Errorf("invalid input format: %w", err)
+	}
+	if result.WidgetId == "" {
+		return nil, fmt.Errorf("widget_id is required")
+	}
+	if result.Key == "" {
+		return nil, fmt.Errorf("key is required")
+	}
+	if _, _, _, err := ResolvedSendKeySequence(result.Key); err != nil {
+		return nil, err
+	}
+	return result, nil
 }

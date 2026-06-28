@@ -21,6 +21,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/aiusechat/aiutil"
 	"github.com/wavetermdev/waveterm/pkg/aiusechat/chatstore"
 	"github.com/wavetermdev/waveterm/pkg/aiusechat/uctypes"
+	"github.com/wavetermdev/waveterm/pkg/aistore"
 	"github.com/wavetermdev/waveterm/pkg/secretstore"
 	"github.com/wavetermdev/waveterm/pkg/telemetry"
 	"github.com/wavetermdev/waveterm/pkg/telemetry/telemetrydata"
@@ -523,7 +524,17 @@ func ResolveToolCall(toolDef *uctypes.ToolDefinition, toolCall uctypes.WaveToolC
 			}
 		}
 	} else if toolDef.ToolAnyCallback != nil {
+		auditStart := time.Now()
+		auditEntry := aistore.ToolCallLogEntry{
+			ToolName:    toolCall.Name,
+			SessionId:   chatOpts.ChatId,
+			AgentId:     chatOpts.TabId,
+			Input:       toolCall.Input,
+			Status:      "started",
+		}
 		output, err := toolDef.ToolAnyCallback(toolCall.Input, toolCall.ToolUseData)
+		auditEntry.DurationMs = time.Since(auditStart).Milliseconds()
+		auditEntry.Output = output
 		if err != nil {
 			if toolErr, ok := err.(*aiutil.ToolError); ok {
 				errJSON, _ := json.Marshal(toolErr)
@@ -531,14 +542,24 @@ func ResolveToolCall(toolDef *uctypes.ToolDefinition, toolCall uctypes.WaveToolC
 			} else {
 				result.ErrorText = err.Error()
 			}
+			auditEntry.Status = "error"
+			auditEntry.Err = err.Error()
 		} else {
-			// Marshal the result to JSON
+			auditEntry.Status = "ok"
+		}
+		go func() {
+			bgCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			if err := aistore.GetAuditLogger().Record(bgCtx, auditEntry); err != nil {
+				log.Printf("auditlog: failed to record tool %s: %v", toolCall.Name, err)
+			}
+		}()
+		if err == nil {
 			jsonBytes, marshalErr := json.Marshal(output)
 			if marshalErr != nil {
 				result.ErrorText = fmt.Sprintf("failed to marshal tool output: %v", marshalErr)
 			} else {
 				result.Text = string(jsonBytes)
-				// Recompute tool description with the result
 				if toolDef.ToolCallDesc != nil && toolCall.ToolUseData != nil {
 					toolCall.ToolUseData.ToolDesc = toolDef.ToolCallDesc(toolCall.Input, output, toolCall.ToolUseData)
 				}
