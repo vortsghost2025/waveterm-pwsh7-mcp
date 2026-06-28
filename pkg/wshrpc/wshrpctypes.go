@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/wavetermdev/waveterm/pkg/aiusechat/uctypes"
+	"github.com/wavetermdev/waveterm/pkg/aistore"
 	"github.com/wavetermdev/waveterm/pkg/baseds"
 	"github.com/wavetermdev/waveterm/pkg/telemetry/telemetrydata"
 	"github.com/wavetermdev/waveterm/pkg/vdom"
@@ -174,8 +175,12 @@ type WshRpcInterface interface {
 
 	// terminal
 	TermGetScrollbackLinesCommand(ctx context.Context, data CommandTermGetScrollbackLinesData) (*CommandTermGetScrollbackLinesRtnData, error)
+	TermSearchScrollbackCommand(ctx context.Context, data CommandTermSearchScrollbackData) (*CommandTermSearchScrollbackRtnData, error)
 	TermInfoCommand(ctx context.Context, data TermInfoRequest) (*TermInfo, error)
 	CommandRunStreamCommand(ctx context.Context, req CommandRunStreamRequest) chan RespOrErrorUnion[CommandRunStreamEvent]
+
+	// widget
+	WidgetClearScrollbackCommand(ctx context.Context, data WidgetClearScrollbackData) error
 
 	// file
 	WshRpcFileInterface
@@ -213,6 +218,21 @@ type WshRpcInterface interface {
 	JobControllerDetachJobCommand(ctx context.Context, jobId string) error
 	JobControllerGetAllJobManagerStatusCommand(ctx context.Context) ([]*JobManagerStatusUpdate, error)
 	BlockJobStatusCommand(ctx context.Context, blockId string) (*BlockJobStatusData, error)
+
+	// agent
+	AgentIssueTokenCommand(ctx context.Context, data AgentIssueTokenData) (AgentIssueTokenRtnData, error)
+	AgentGetScrollbackCommand(ctx context.Context, data AgentGetScrollbackData) (*CommandTermGetScrollbackLinesRtnData, error)
+	AgentSendInputCommand(ctx context.Context, data AgentSendInputData) error
+	AgentRunCommandCommand(ctx context.Context, data AgentRunCommandData) (*AgentRunCommandRtnData, error)
+	AgentListBlocksCommand(ctx context.Context, data AgentListBlocksData) ([]BlocksListEntry, error)
+	AgentListTerminalsCommand(ctx context.Context, data AgentListTerminalsData) (*AgentListTerminalsRtnData, error)
+
+	// memory
+	MemoryPutCommand(ctx context.Context, data MemoryPutRequest) (*MemoryPutResponse, error)
+	MemoryGetCommand(ctx context.Context, data MemoryGetRequest) (*MemoryGetResponse, error)
+	MemoryListCommand(ctx context.Context, data MemoryListRequest) (*MemoryListResponse, error)
+	MemoryDeleteCommand(ctx context.Context, data MemoryDeleteRequest) (*MemoryDeleteResponse, error)
+	MemorySearchCommand(ctx context.Context, data MemorySearchRequest) (*MemorySearchResponse, error)
 }
 
 // for frontend
@@ -229,12 +249,13 @@ type RpcOpts struct {
 }
 
 type RpcContext struct {
-	SockName  string `json:"sockname,omitempty"`  // the domain socket name
-	RouteId   string `json:"routeid"`             // the routeid from the jwt
-	ProcRoute bool   `json:"procroute,omitempty"` // use a random procid for route
-	BlockId   string `json:"blockid,omitempty"`   // blockid for this rpc
-	Conn      string `json:"conn,omitempty"`      // the conn name
-	IsRouter  bool   `json:"isrouter,omitempty"`  // if this is for a sub-router
+	SockName  string `json:"sockname,omitempty"`
+	RouteId   string `json:"routeid"`
+	ProcRoute bool   `json:"procroute,omitempty"`
+	BlockId   string `json:"blockid,omitempty"`
+	Conn      string `json:"conn,omitempty"`
+	IsRouter  bool   `json:"isrouter,omitempty"`
+	IsAgent   bool   `json:"isagent,omitempty"`
 }
 
 func (rc RpcContext) GenerateRouteId() string {
@@ -657,9 +678,10 @@ type CommandSetRTInfoData struct {
 }
 
 type CommandTermGetScrollbackLinesData struct {
-	LineStart   int  `json:"linestart"`
-	LineEnd     int  `json:"lineend"`
-	LastCommand bool `json:"lastcommand"`
+	BlockId     string `json:"blockid,omitempty"`
+	LineStart   int    `json:"linestart"`
+	LineEnd     int    `json:"lineend"`
+	LastCommand bool   `json:"lastcommand"`
 }
 
 type CommandTermGetScrollbackLinesRtnData struct {
@@ -960,4 +982,131 @@ type TermInfo struct {
 	Env     []string `json:"env,omitempty"`
 	Shell   string   `json:"shell,omitempty"`
 	Pid     int      `json:"pid,omitempty"`
+}
+
+type AgentIssueTokenData struct {
+	DurationMinutes int `json:"durationminutes,omitempty"`
+}
+
+type AgentIssueTokenRtnData struct {
+	Token string `json:"token"`
+}
+
+type AgentGetScrollbackData struct {
+	BlockId     string `json:"blockid"`
+	LineStart   int    `json:"linestart,omitempty"`
+	LineEnd     int    `json:"lineend,omitempty"`
+	LastCommand bool   `json:"lastcommand,omitempty"`
+}
+
+type AgentSendInputData struct {
+	BlockId   string `json:"blockid"`
+	InputData string `json:"inputdata"`
+	Enter     bool   `json:"enter,omitempty"`
+}
+
+type AgentRunCommandData struct {
+	Command string `json:"command"`
+	Timeout int    `json:"timeout,omitempty"`
+}
+
+type AgentRunCommandRtnData struct {
+	ExitCode int    `json:"exitcode,omitempty"`
+	Output   string `json:"output,omitempty"`
+}
+
+type AgentListBlocksData struct {
+	BlockType string `json:"blocktype,omitempty"`
+}
+
+type AgentListTerminalsData struct{}
+
+type AgentListTerminalsRtnData struct {
+	Terminals []AgentTerminalInfo `json:"terminals"`
+}
+
+type AgentTerminalInfo struct {
+	BlockId string `json:"blockid"`
+	State   string `json:"state"`
+	Cwd     string `json:"cwd,omitempty"`
+}
+
+// memory types
+type MemoryPutRequest struct {
+	WorkspaceId string   `json:"workspaceid,omitempty"`
+	Scope       string   `json:"scope,omitempty"`
+	Key         string   `json:"key,omitempty"`
+	Tags        []string `json:"tags,omitempty"`
+	TtlSec      int      `json:"ttlsec,omitempty"`
+	Body        string   `json:"body"`
+}
+
+type MemoryPutResponse struct {
+	Id string `json:"id"`
+}
+
+type MemoryGetRequest struct {
+	WorkspaceId string `json:"workspaceid,omitempty"`
+	Id          string `json:"id"`
+	Scope       string `json:"scope,omitempty"`
+	Key         string `json:"key,omitempty"`
+}
+
+type MemoryGetResponse struct {
+	Record *aistore.MemoryRecord `json:"record"`
+}
+
+type MemoryListRequest struct {
+	WorkspaceId string `json:"workspaceid,omitempty"`
+	Scope       string `json:"scope,omitempty"`
+	TagGlob     string `json:"tagglob,omitempty"`
+	Limit       int    `json:"limit,omitempty"`
+	Cursor      string `json:"cursor,omitempty"`
+}
+
+type MemoryListResponse struct {
+	Records    []*aistore.MemoryRecord `json:"records"`
+	NextCursor string                  `json:"nextcursor,omitempty"`
+}
+
+type MemoryDeleteRequest struct {
+	WorkspaceId string `json:"workspaceid,omitempty"`
+	Id          string `json:"id"`
+}
+
+type MemoryDeleteResponse struct {
+	Deleted bool `json:"deleted"`
+}
+
+type MemorySearchRequest struct {
+	WorkspaceId string `json:"workspaceid,omitempty"`
+	Scope       string `json:"scope,omitempty"`
+	Query       string `json:"query"`
+	Limit       int    `json:"limit,omitempty"`
+}
+
+type MemorySearchResponse struct {
+	Matches []aistore.MemorySearchMatch `json:"matches"`
+}
+
+type CommandTermSearchScrollbackData struct {
+	BlockId    string `json:"blockid,omitempty"`
+	Pattern    string `json:"pattern"`
+	IsRegex    bool   `json:"isregex,omitempty"`
+	Context    int    `json:"context,omitempty"`
+	MaxMatches int    `json:"maxmatches,omitempty"`
+}
+
+type CommandTermSearchScrollbackRtnData struct {
+	TotalMatches int                   `json:"totalmatches"`
+	Matches      []TermSearchMatch     `json:"matches"`
+}
+
+type TermSearchMatch struct {
+	Line    int    `json:"line"`
+	Snippet string `json:"snippet"`
+}
+
+type WidgetClearScrollbackData struct {
+	BlockId string `json:"blockid,omitempty"`
 }

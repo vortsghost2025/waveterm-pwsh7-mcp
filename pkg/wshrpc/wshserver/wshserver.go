@@ -26,6 +26,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/skratchdot/open-golang/open"
+	"github.com/wavetermdev/waveterm/pkg/aistore"
 	"github.com/wavetermdev/waveterm/pkg/aiusechat"
 	"github.com/wavetermdev/waveterm/pkg/aiusechat/chatstore"
 	"github.com/wavetermdev/waveterm/pkg/aiusechat/uctypes"
@@ -877,14 +878,19 @@ func stripANSI(data []byte) []byte {
 }
 
 func (ws *WshServer) TermGetScrollbackLinesCommand(ctx context.Context, data wshrpc.CommandTermGetScrollbackLinesData) (*wshrpc.CommandTermGetScrollbackLinesRtnData, error) {
-	rpcSource := wshutil.GetRpcSourceFromContext(ctx)
-	if rpcSource == "" {
-		return nil, fmt.Errorf("no rpc source (route) set")
+	var blockId string
+	if data.BlockId != "" {
+		blockId = data.BlockId
+	} else {
+		rpcSource := wshutil.GetRpcSourceFromContext(ctx)
+		if rpcSource == "" {
+			return nil, fmt.Errorf("no rpc source (route) set")
+		}
+		if !strings.HasPrefix(rpcSource, wshutil.RoutePrefix_FeBlock) {
+			return nil, fmt.Errorf("unexpected rpc source prefix: %s", rpcSource)
+		}
+		blockId = strings.TrimPrefix(rpcSource, wshutil.RoutePrefix_FeBlock)
 	}
-	if !strings.HasPrefix(rpcSource, wshutil.RoutePrefix_FeBlock) {
-		return nil, fmt.Errorf("unexpected rpc source prefix: %s", rpcSource)
-	}
-	blockId := strings.TrimPrefix(rpcSource, wshutil.RoutePrefix_FeBlock)
 
 	waveFile, err := filestore.WFS.Stat(ctx, blockId, wavebase.BlockFile_Term)
 	if err == fs.ErrNotExist {
@@ -944,6 +950,109 @@ func (ws *WshServer) TermGetScrollbackLinesCommand(ctx context.Context, data wsh
 		Lines:       selectedLines,
 		LastUpdated: waveFile.ModTs,
 	}, nil
+}
+
+func (ws *WshServer) TermSearchScrollbackCommand(ctx context.Context, data wshrpc.CommandTermSearchScrollbackData) (*wshrpc.CommandTermSearchScrollbackRtnData, error) {
+	var blockId string
+	if data.BlockId != "" {
+		blockId = data.BlockId
+	} else {
+		rpcSource := wshutil.GetRpcSourceFromContext(ctx)
+		if !strings.HasPrefix(rpcSource, wshutil.RoutePrefix_FeBlock) {
+			return nil, fmt.Errorf("unexpected rpc source prefix: %s", rpcSource)
+		}
+		blockId = strings.TrimPrefix(rpcSource, wshutil.RoutePrefix_FeBlock)
+	}
+
+	if data.Pattern == "" {
+		return nil, fmt.Errorf("missing pattern")
+	}
+
+	maxMatches := data.MaxMatches
+	if maxMatches <= 0 || maxMatches > 200 {
+		maxMatches = 50
+	}
+	contextLines := data.Context
+	if contextLines < 0 || contextLines > 10 {
+		contextLines = 2
+	}
+
+	waveFile, err := filestore.WFS.Stat(ctx, blockId, wavebase.BlockFile_Term)
+	if err == fs.ErrNotExist {
+		return &wshrpc.CommandTermSearchScrollbackRtnData{TotalMatches: 0, Matches: []wshrpc.TermSearchMatch{}}, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("error statting term file: %w", err)
+	}
+	dataLength := waveFile.DataLength()
+	if dataLength == 0 {
+		return &wshrpc.CommandTermSearchScrollbackRtnData{TotalMatches: 0, Matches: []wshrpc.TermSearchMatch{}}, nil
+	}
+	readOffset := waveFile.DataStartIdx()
+	_, readData, err := filestore.WFS.ReadAt(ctx, blockId, wavebase.BlockFile_Term, readOffset, dataLength)
+	if err != nil {
+		return nil, fmt.Errorf("error reading term file: %w", err)
+	}
+	readData = stripANSI(readData)
+	allLines := strings.Split(string(readData), "\n")
+	if len(allLines) > 0 && allLines[len(allLines)-1] == "" {
+		allLines = allLines[:len(allLines)-1]
+	}
+
+	pattern := data.Pattern
+	var matcher func(line string) bool
+	if data.IsRegex {
+		re, err := regexp.Compile(pattern)
+		if err != nil {
+			return nil, fmt.Errorf("invalid regex pattern: %w", err)
+		}
+		matcher = func(line string) bool { return re.MatchString(line) }
+	} else {
+		patternLower := strings.ToLower(pattern)
+		matcher = func(line string) bool { return strings.Contains(strings.ToLower(line), patternLower) }
+	}
+
+	var matches []wshrpc.TermSearchMatch
+	for i, line := range allLines {
+		if !matcher(line) {
+			continue
+		}
+		lineNum := i
+		snippet := line
+		if len(snippet) > 200 {
+			snippet = snippet[:200] + "..."
+		}
+		matches = append(matches, wshrpc.TermSearchMatch{Line: lineNum, Snippet: snippet})
+		if len(matches) >= maxMatches {
+			break
+		}
+	}
+	if matches == nil {
+		matches = []wshrpc.TermSearchMatch{}
+	}
+
+	return &wshrpc.CommandTermSearchScrollbackRtnData{
+		TotalMatches: len(matches),
+		Matches:      matches,
+	}, nil
+}
+
+func (ws *WshServer) WidgetClearScrollbackCommand(ctx context.Context, data wshrpc.WidgetClearScrollbackData) error {
+	var blockId string
+	if data.BlockId != "" {
+		blockId = data.BlockId
+	} else {
+		rpcSource := wshutil.GetRpcSourceFromContext(ctx)
+		if !strings.HasPrefix(rpcSource, wshutil.RoutePrefix_FeBlock) {
+			return fmt.Errorf("unexpected rpc source prefix: %s", rpcSource)
+		}
+		blockId = strings.TrimPrefix(rpcSource, wshutil.RoutePrefix_FeBlock)
+	}
+	err := filestore.WFS.DeleteFile(ctx, blockId, wavebase.BlockFile_Term)
+	if err != nil && err != fs.ErrNotExist {
+		return fmt.Errorf("error clearing scrollback: %w", err)
+	}
+	return nil
 }
 
 func (ws *WshServer) WaveInfoCommand(ctx context.Context) (*wshrpc.WaveInfoData, error) {
@@ -1869,4 +1978,220 @@ func (ws *WshServer) CommandRunStreamCommand(ctx context.Context, req wshrpc.Com
 		}
 	}()
 	return rtn
+}
+
+func (ws *WshServer) AgentIssueTokenCommand(ctx context.Context, data wshrpc.AgentIssueTokenData) (wshrpc.AgentIssueTokenRtnData, error) {
+	rpcCtx := wshutil.GetRpcContextFromCtx(ctx)
+	if rpcCtx == nil {
+		return wshrpc.AgentIssueTokenRtnData{}, fmt.Errorf("not authenticated")
+	}
+	if !rpcCtx.IsRouter && !rpcCtx.IsAgent {
+		return wshrpc.AgentIssueTokenRtnData{}, fmt.Errorf("not authorized: only router or agent clients can issue agent tokens")
+	}
+	newToken, err := wshutil.MakeClientJWTToken(wshrpc.RpcContext{IsAgent: true, SockName: rpcCtx.SockName})
+	if err != nil {
+		return wshrpc.AgentIssueTokenRtnData{}, err
+	}
+	return wshrpc.AgentIssueTokenRtnData{Token: newToken}, nil
+}
+
+func (ws *WshServer) AgentGetScrollbackCommand(ctx context.Context, data wshrpc.AgentGetScrollbackData) (*wshrpc.CommandTermGetScrollbackLinesRtnData, error) {
+	if data.BlockId == "" {
+		return nil, fmt.Errorf("missing blockid")
+	}
+	return ws.TermGetScrollbackLinesCommand(ctx, wshrpc.CommandTermGetScrollbackLinesData{
+		BlockId:     data.BlockId,
+		LineStart:   data.LineStart,
+		LineEnd:     data.LineEnd,
+		LastCommand: data.LastCommand,
+	})
+}
+
+func (ws *WshServer) AgentSendInputCommand(ctx context.Context, data wshrpc.AgentSendInputData) error {
+	if data.BlockId == "" {
+		return fmt.Errorf("missing blockid")
+	}
+	if data.InputData == "" {
+		return fmt.Errorf("missing inputdata")
+	}
+	inputData := data.InputData
+	if data.Enter {
+		inputData += "\r"
+	}
+	inputBytes := []byte(inputData)
+	encoded := base64.StdEncoding.EncodeToString(inputBytes)
+	return ws.ControllerInputCommand(ctx, wshrpc.CommandBlockInputData{
+		BlockId:     data.BlockId,
+		InputData64: encoded,
+	})
+}
+
+func (ws *WshServer) AgentRunCommandCommand(ctx context.Context, data wshrpc.AgentRunCommandData) (*wshrpc.AgentRunCommandRtnData, error) {
+	if data.Command == "" {
+		return nil, fmt.Errorf("missing command")
+	}
+	timeout := data.Timeout
+	if timeout <= 0 {
+		timeout = 30
+	}
+	cmdCtx, cancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
+	defer cancel()
+	shell := shellutil.DetectLocalShellPath()
+	cmd := exec.CommandContext(cmdCtx, shell, "-c", data.Command)
+	output, err := cmd.CombinedOutput()
+	exitCode := 0
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			exitCode = exitErr.ExitCode()
+		} else {
+			return nil, fmt.Errorf("command execution error: %w", err)
+		}
+	}
+	return &wshrpc.AgentRunCommandRtnData{
+		ExitCode: exitCode,
+		Output:   string(output),
+	}, nil
+}
+
+func (ws *WshServer) AgentListBlocksCommand(ctx context.Context, data wshrpc.AgentListBlocksData) ([]wshrpc.BlocksListEntry, error) {
+	entries, err := ws.BlocksListCommand(ctx, wshrpc.BlocksListRequest{})
+	if err != nil {
+		return nil, err
+	}
+	if data.BlockType == "" {
+		return entries, nil
+	}
+	var filtered []wshrpc.BlocksListEntry
+	for _, entry := range entries {
+		view, _ := entry.Meta[waveobj.MetaKey_View].(string)
+		if view == data.BlockType {
+			filtered = append(filtered, entry)
+		}
+	}
+	return filtered, nil
+}
+
+func (ws *WshServer) AgentListTerminalsCommand(ctx context.Context, data wshrpc.AgentListTerminalsData) (*wshrpc.AgentListTerminalsRtnData, error) {
+	entries, err := ws.AgentListBlocksCommand(ctx, wshrpc.AgentListBlocksData{BlockType: "term"})
+	if err != nil {
+		return nil, err
+	}
+	var terminals []wshrpc.AgentTerminalInfo
+	for _, entry := range entries {
+		state := "idle"
+		jobStatus, err := ws.BlockJobStatusCommand(ctx, entry.BlockId)
+		if err == nil && jobStatus != nil && jobStatus.Status != "done" {
+			state = "running"
+		}
+		cwd, _ := entry.Meta[waveobj.MetaKey_CmdCwd].(string)
+		terminals = append(terminals, wshrpc.AgentTerminalInfo{
+			BlockId: entry.BlockId,
+			State:   state,
+			Cwd:     cwd,
+		})
+	}
+	if terminals == nil {
+		terminals = []wshrpc.AgentTerminalInfo{}
+	}
+	return &wshrpc.AgentListTerminalsRtnData{Terminals: terminals}, nil
+}
+
+func (ws *WshServer) MemoryPutCommand(ctx context.Context, data wshrpc.MemoryPutRequest) (*wshrpc.MemoryPutResponse, error) {
+	rpcCtx := wshutil.GetRpcContextFromCtx(ctx)
+	if rpcCtx == nil {
+		return nil, fmt.Errorf("not authenticated")
+	}
+	if !rpcCtx.IsRouter && !rpcCtx.IsAgent {
+		return nil, fmt.Errorf("not authorized: only router or agent clients can access memory")
+	}
+	store := aistore.GetMemoryStore()
+	opts := aistore.MemoryOpts{
+		WorkspaceId: data.WorkspaceId,
+		Scope:       data.Scope,
+		Key:         data.Key,
+		Tags:        data.Tags,
+		TtlSec:      data.TtlSec,
+	}
+	id, err := store.Put(ctx, opts, data.Body)
+	if err != nil {
+		return nil, fmt.Errorf("memory put failed: %w", err)
+	}
+	return &wshrpc.MemoryPutResponse{Id: id}, nil
+}
+
+func (ws *WshServer) MemoryGetCommand(ctx context.Context, data wshrpc.MemoryGetRequest) (*wshrpc.MemoryGetResponse, error) {
+	rpcCtx := wshutil.GetRpcContextFromCtx(ctx)
+	if rpcCtx == nil {
+		return nil, fmt.Errorf("not authenticated")
+	}
+	if !rpcCtx.IsRouter && !rpcCtx.IsAgent {
+		return nil, fmt.Errorf("not authorized: only router or agent clients can access memory")
+	}
+	store := aistore.GetMemoryStore()
+	var rec *aistore.MemoryRecord
+	var err error
+	if data.Key != "" {
+		rec, err = store.GetByKey(ctx, data.WorkspaceId, data.Scope, data.Key)
+	} else {
+		rec, err = store.Get(ctx, data.WorkspaceId, data.Id)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &wshrpc.MemoryGetResponse{Record: rec}, nil
+}
+
+func (ws *WshServer) MemoryListCommand(ctx context.Context, data wshrpc.MemoryListRequest) (*wshrpc.MemoryListResponse, error) {
+	rpcCtx := wshutil.GetRpcContextFromCtx(ctx)
+	if rpcCtx == nil {
+		return nil, fmt.Errorf("not authenticated")
+	}
+	if !rpcCtx.IsRouter && !rpcCtx.IsAgent {
+		return nil, fmt.Errorf("not authorized: only router or agent clients can access memory")
+	}
+	store := aistore.GetMemoryStore()
+	opts := aistore.MemoryListOpts{
+		WorkspaceId: data.WorkspaceId,
+		Scope:       data.Scope,
+		TagGlob:     data.TagGlob,
+		Limit:       data.Limit,
+		Cursor:      data.Cursor,
+	}
+	records, cursor, err := store.List(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+	return &wshrpc.MemoryListResponse{Records: records, NextCursor: cursor}, nil
+}
+
+func (ws *WshServer) MemoryDeleteCommand(ctx context.Context, data wshrpc.MemoryDeleteRequest) (*wshrpc.MemoryDeleteResponse, error) {
+	rpcCtx := wshutil.GetRpcContextFromCtx(ctx)
+	if rpcCtx == nil {
+		return nil, fmt.Errorf("not authenticated")
+	}
+	if !rpcCtx.IsRouter && !rpcCtx.IsAgent {
+		return nil, fmt.Errorf("not authorized: only router or agent clients can access memory")
+	}
+	store := aistore.GetMemoryStore()
+	deleted, err := store.Delete(ctx, data.WorkspaceId, data.Id)
+	if err != nil {
+		return nil, err
+	}
+	return &wshrpc.MemoryDeleteResponse{Deleted: deleted}, nil
+}
+
+func (ws *WshServer) MemorySearchCommand(ctx context.Context, data wshrpc.MemorySearchRequest) (*wshrpc.MemorySearchResponse, error) {
+	rpcCtx := wshutil.GetRpcContextFromCtx(ctx)
+	if rpcCtx == nil {
+		return nil, fmt.Errorf("not authenticated")
+	}
+	if !rpcCtx.IsRouter && !rpcCtx.IsAgent {
+		return nil, fmt.Errorf("not authorized: only router or agent clients can access memory")
+	}
+	store := aistore.GetMemoryStore()
+	matches, err := store.Search(ctx, data.WorkspaceId, data.Scope, data.Query, data.Limit)
+	if err != nil {
+		return nil, err
+	}
+	return &wshrpc.MemorySearchResponse{Matches: matches}, nil
 }

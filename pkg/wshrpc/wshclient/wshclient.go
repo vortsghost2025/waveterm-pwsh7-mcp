@@ -23,6 +23,42 @@ func ActivityCommand(w *wshutil.WshRpc, data wshrpc.ActivityUpdate, opts *wshrpc
 	return err
 }
 
+// command "agentgetscrollback", wshserver.AgentGetScrollbackCommand
+func AgentGetScrollbackCommand(w *wshutil.WshRpc, data wshrpc.AgentGetScrollbackData, opts *wshrpc.RpcOpts) (*wshrpc.CommandTermGetScrollbackLinesRtnData, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.CommandTermGetScrollbackLinesRtnData](w, "agentgetscrollback", data, opts)
+	return resp, err
+}
+
+// command "agentissuetoken", wshserver.AgentIssueTokenCommand
+func AgentIssueTokenCommand(w *wshutil.WshRpc, data wshrpc.AgentIssueTokenData, opts *wshrpc.RpcOpts) (wshrpc.AgentIssueTokenRtnData, error) {
+	resp, err := sendRpcRequestCallHelper[wshrpc.AgentIssueTokenRtnData](w, "agentissuetoken", data, opts)
+	return resp, err
+}
+
+// command "agentlistblocks", wshserver.AgentListBlocksCommand
+func AgentListBlocksCommand(w *wshutil.WshRpc, data wshrpc.AgentListBlocksData, opts *wshrpc.RpcOpts) ([]wshrpc.BlocksListEntry, error) {
+	resp, err := sendRpcRequestCallHelper[[]wshrpc.BlocksListEntry](w, "agentlistblocks", data, opts)
+	return resp, err
+}
+
+// command "agentlistterminals", wshserver.AgentListTerminalsCommand
+func AgentListTerminalsCommand(w *wshutil.WshRpc, data wshrpc.AgentListTerminalsData, opts *wshrpc.RpcOpts) (*wshrpc.AgentListTerminalsRtnData, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.AgentListTerminalsRtnData](w, "agentlistterminals", data, opts)
+	return resp, err
+}
+
+// command "agentruncommand", wshserver.AgentRunCommandCommand
+func AgentRunCommandCommand(w *wshutil.WshRpc, data wshrpc.AgentRunCommandData, opts *wshrpc.RpcOpts) (*wshrpc.AgentRunCommandRtnData, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.AgentRunCommandRtnData](w, "agentruncommand", data, opts)
+	return resp, err
+}
+
+// command "agentsendinput", wshserver.AgentSendInputCommand
+func AgentSendInputCommand(w *wshutil.WshRpc, data wshrpc.AgentSendInputData, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "agentsendinput", data, opts)
+	return err
+}
+
 // command "aisendmessage", wshserver.AiSendMessageCommand
 func AiSendMessageCommand(w *wshutil.WshRpc, data wshrpc.AiMessageData, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "aisendmessage", data, opts)
@@ -633,6 +669,36 @@ func MakeDraftFromLocalCommand(w *wshutil.WshRpc, data wshrpc.CommandMakeDraftFr
 	return resp, err
 }
 
+// command "memorydelete", wshserver.MemoryDeleteCommand
+func MemoryDeleteCommand(w *wshutil.WshRpc, data wshrpc.MemoryDeleteRequest, opts *wshrpc.RpcOpts) (*wshrpc.MemoryDeleteResponse, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.MemoryDeleteResponse](w, "memorydelete", data, opts)
+	return resp, err
+}
+
+// command "memoryget", wshserver.MemoryGetCommand
+func MemoryGetCommand(w *wshutil.WshRpc, data wshrpc.MemoryGetRequest, opts *wshrpc.RpcOpts) (*wshrpc.MemoryGetResponse, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.MemoryGetResponse](w, "memoryget", data, opts)
+	return resp, err
+}
+
+// command "memorylist", wshserver.MemoryListCommand
+func MemoryListCommand(w *wshutil.WshRpc, data wshrpc.MemoryListRequest, opts *wshrpc.RpcOpts) (*wshrpc.MemoryListResponse, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.MemoryListResponse](w, "memorylist", data, opts)
+	return resp, err
+}
+
+// command "memoryput", wshserver.MemoryPutCommand
+func MemoryPutCommand(w *wshutil.WshRpc, data wshrpc.MemoryPutRequest, opts *wshrpc.RpcOpts) (*wshrpc.MemoryPutResponse, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.MemoryPutResponse](w, "memoryput", data, opts)
+	return resp, err
+}
+
+// command "memorysearch", wshserver.MemorySearchCommand
+func MemorySearchCommand(w *wshutil.WshRpc, data wshrpc.MemorySearchRequest, opts *wshrpc.RpcOpts) (*wshrpc.MemorySearchResponse, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.MemorySearchResponse](w, "memorysearch", data, opts)
+	return resp, err
+}
+
 // command "message", wshserver.MessageCommand
 func MessageCommand(w *wshutil.WshRpc, data wshrpc.CommandMessageData, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "message", data, opts)
@@ -935,6 +1001,12 @@ func TermInfoCommand(w *wshutil.WshRpc, data wshrpc.TermInfoRequest, opts *wshrp
 	return resp, err
 }
 
+// command "termsearchscrollback", wshserver.TermSearchScrollbackCommand
+func TermSearchScrollbackCommand(w *wshutil.WshRpc, data wshrpc.CommandTermSearchScrollbackData, opts *wshrpc.RpcOpts) (*wshrpc.CommandTermSearchScrollbackRtnData, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.CommandTermSearchScrollbackRtnData](w, "termsearchscrollback", data, opts)
+	return resp, err
+}
+
 // command "test", wshserver.TestCommand
 func TestCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "test", data, opts)
@@ -1027,6 +1099,12 @@ func WaveInfoCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) (*wshrpc.WaveInfoD
 func WebSelectorCommand(w *wshutil.WshRpc, data wshrpc.CommandWebSelectorData, opts *wshrpc.RpcOpts) ([]string, error) {
 	resp, err := sendRpcRequestCallHelper[[]string](w, "webselector", data, opts)
 	return resp, err
+}
+
+// command "widgetclearscrollback", wshserver.WidgetClearScrollbackCommand
+func WidgetClearScrollbackCommand(w *wshutil.WshRpc, data wshrpc.WidgetClearScrollbackData, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "widgetclearscrollback", data, opts)
+	return err
 }
 
 // command "workspacelist", wshserver.WorkspaceListCommand

@@ -411,7 +411,7 @@ export class TermViewModel implements ViewModel {
                 elemtype: "iconbutton",
                 icon,
                 className: "text-muted",
-                title: "No shell integration — Wave AI unable to run commands.",
+                title: "No shell integration — Wave AI will use another terminal if available.",
                 noAction: true,
             };
         }
@@ -426,15 +426,15 @@ export class TermViewModel implements ViewModel {
         }
         if (shellIntegrationStatus === "running-command") {
             let title = claudeCodeActive
-                ? "Claude Code Detected"
-                : "Shell busy — Wave AI unable to run commands while another command is running.";
+                ? "Claude Code running — Wave AI will use another terminal if needed."
+                : "Shell busy in this terminal — Wave AI will use another terminal if needed.";
 
             if (this.termRef.current) {
                 const inAltBuffer = this.termRef.current.terminal?.buffer?.active?.type === "alternate";
                 const lastCommand = get(this.termRef.current.lastCommandAtom);
                 const blockingCmd = getBlockingCommand(lastCommand, inAltBuffer);
                 if (blockingCmd) {
-                    title = `Wave AI integration disabled while you're inside ${blockingCmd}.`;
+                    title = `${blockingCmd} is running in this terminal — Wave AI will use another terminal if needed.`;
                 }
             }
 

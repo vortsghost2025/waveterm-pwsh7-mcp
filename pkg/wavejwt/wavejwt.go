@@ -34,6 +34,7 @@ type WaveJwtClaims struct {
 	JobId      string `json:"jobid,omitempty"`
 	Conn       string `json:"conn,omitempty"`
 	Router     bool   `json:"router,omitempty"`
+	Agent      bool   `json:"agent,omitempty"`
 }
 
 type KeyPair struct {

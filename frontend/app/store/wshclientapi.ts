@@ -24,6 +24,42 @@ export class RpcApiType {
         return client.wshRpcCall("activity", data, opts);
     }
 
+    // command "agentgetscrollback" [call]
+    AgentGetScrollbackCommand(client: WshClient, data: AgentGetScrollbackData, opts?: RpcOpts): Promise<CommandTermGetScrollbackLinesRtnData> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "agentgetscrollback", data, opts);
+        return client.wshRpcCall("agentgetscrollback", data, opts);
+    }
+
+    // command "agentissuetoken" [call]
+    AgentIssueTokenCommand(client: WshClient, data: AgentIssueTokenData, opts?: RpcOpts): Promise<AgentIssueTokenRtnData> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "agentissuetoken", data, opts);
+        return client.wshRpcCall("agentissuetoken", data, opts);
+    }
+
+    // command "agentlistblocks" [call]
+    AgentListBlocksCommand(client: WshClient, data: AgentListBlocksData, opts?: RpcOpts): Promise<BlocksListEntry[]> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "agentlistblocks", data, opts);
+        return client.wshRpcCall("agentlistblocks", data, opts);
+    }
+
+    // command "agentlistterminals" [call]
+    AgentListTerminalsCommand(client: WshClient, data: AgentListTerminalsData, opts?: RpcOpts): Promise<AgentListTerminalsRtnData> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "agentlistterminals", data, opts);
+        return client.wshRpcCall("agentlistterminals", data, opts);
+    }
+
+    // command "agentruncommand" [call]
+    AgentRunCommandCommand(client: WshClient, data: AgentRunCommandData, opts?: RpcOpts): Promise<AgentRunCommandRtnData> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "agentruncommand", data, opts);
+        return client.wshRpcCall("agentruncommand", data, opts);
+    }
+
+    // command "agentsendinput" [call]
+    AgentSendInputCommand(client: WshClient, data: AgentSendInputData, opts?: RpcOpts): Promise<void> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "agentsendinput", data, opts);
+        return client.wshRpcCall("agentsendinput", data, opts);
+    }
+
     // command "aisendmessage" [call]
     AiSendMessageCommand(client: WshClient, data: AiMessageData, opts?: RpcOpts): Promise<void> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "aisendmessage", data, opts);
@@ -636,6 +672,36 @@ export class RpcApiType {
         return client.wshRpcCall("makedraftfromlocal", data, opts);
     }
 
+    // command "memorydelete" [call]
+    MemoryDeleteCommand(client: WshClient, data: MemoryDeleteRequest, opts?: RpcOpts): Promise<MemoryDeleteResponse> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "memorydelete", data, opts);
+        return client.wshRpcCall("memorydelete", data, opts);
+    }
+
+    // command "memoryget" [call]
+    MemoryGetCommand(client: WshClient, data: MemoryGetRequest, opts?: RpcOpts): Promise<MemoryGetResponse> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "memoryget", data, opts);
+        return client.wshRpcCall("memoryget", data, opts);
+    }
+
+    // command "memorylist" [call]
+    MemoryListCommand(client: WshClient, data: MemoryListRequest, opts?: RpcOpts): Promise<MemoryListResponse> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "memorylist", data, opts);
+        return client.wshRpcCall("memorylist", data, opts);
+    }
+
+    // command "memoryput" [call]
+    MemoryPutCommand(client: WshClient, data: MemoryPutRequest, opts?: RpcOpts): Promise<MemoryPutResponse> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "memoryput", data, opts);
+        return client.wshRpcCall("memoryput", data, opts);
+    }
+
+    // command "memorysearch" [call]
+    MemorySearchCommand(client: WshClient, data: MemorySearchRequest, opts?: RpcOpts): Promise<MemorySearchResponse> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "memorysearch", data, opts);
+        return client.wshRpcCall("memorysearch", data, opts);
+    }
+
     // command "message" [call]
     MessageCommand(client: WshClient, data: CommandMessageData, opts?: RpcOpts): Promise<void> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "message", data, opts);
@@ -942,6 +1008,12 @@ export class RpcApiType {
         return client.wshRpcCall("terminfo", data, opts);
     }
 
+    // command "termsearchscrollback" [call]
+    TermSearchScrollbackCommand(client: WshClient, data: CommandTermSearchScrollbackData, opts?: RpcOpts): Promise<CommandTermSearchScrollbackRtnData> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "termsearchscrollback", data, opts);
+        return client.wshRpcCall("termsearchscrollback", data, opts);
+    }
+
     // command "test" [call]
     TestCommand(client: WshClient, data: string, opts?: RpcOpts): Promise<void> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "test", data, opts);
@@ -1036,6 +1108,12 @@ export class RpcApiType {
     WebSelectorCommand(client: WshClient, data: CommandWebSelectorData, opts?: RpcOpts): Promise<string[]> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "webselector", data, opts);
         return client.wshRpcCall("webselector", data, opts);
+    }
+
+    // command "widgetclearscrollback" [call]
+    WidgetClearScrollbackCommand(client: WshClient, data: WidgetClearScrollbackData, opts?: RpcOpts): Promise<void> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "widgetclearscrollback", data, opts);
+        return client.wshRpcCall("widgetclearscrollback", data, opts);
     }
 
     // command "workspacelist" [call]

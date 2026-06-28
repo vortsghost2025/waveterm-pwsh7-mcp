@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -12,6 +13,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/wavetermdev/waveterm/pkg/aistore"
 )
 
 type ToolDefinition struct {
@@ -313,6 +316,175 @@ func defineTools() []ToolDefinition {
 				"properties": map[string]any{},
 			},
 		},
+		{
+			Name:        "note_put",
+			Description: "Save a piece of information (note) to the AI agent's persistent memory store. Notes can be tagged, scoped, and given an optional TTL.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"body": map[string]any{
+						"type":        "string",
+						"description": "The main content of the note to save",
+					},
+					"scope": map[string]any{
+						"type":        "string",
+						"description": "Optional scope for organization",
+					},
+					"key": map[string]any{
+						"type":        "string",
+						"description": "Optional unique key for this note",
+					},
+					"tags": map[string]any{
+						"type":        "array",
+						"items":       map[string]any{"type": "string"},
+						"description": "Optional tags for search",
+					},
+					"ttlsec": map[string]any{
+						"type":        "integer",
+						"description": "Optional TTL in seconds",
+					},
+				},
+				"required":             []string{"body"},
+				"additionalProperties": false,
+			},
+		},
+		{
+			Name:        "note_get",
+			Description: "Retrieve a saved note by its ID or key.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"id": map[string]any{
+						"type":        "string",
+						"description": "The ID of the note",
+					},
+					"key": map[string]any{
+						"type":        "string",
+						"description": "The unique key of the note",
+					},
+					"scope": map[string]any{
+						"type":        "string",
+						"description": "Optional scope",
+					},
+				},
+				"additionalProperties": false,
+			},
+		},
+		{
+			Name:        "note_list",
+			Description: "List saved notes with optional scope/tag/limit filters.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"scope":   map[string]any{"type": "string", "description": "Optional scope filter"},
+					"tagglob": map[string]any{"type": "string", "description": "Optional tag glob pattern"},
+					"limit":   map[string]any{"type": "integer", "default": 50, "description": "Maximum notes (default 50, max 200)"},
+				},
+				"additionalProperties": false,
+			},
+		},
+		{
+			Name:        "note_delete",
+			Description: "Delete a saved note by its ID.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"id": map[string]any{"type": "string", "description": "The ID of the note to delete"},
+				},
+				"required":             []string{"id"},
+				"additionalProperties": false,
+			},
+		},
+		{
+			Name:        "note_search",
+			Description: "Search saved notes by text content using substring matching (body, key, tags).",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"query": map[string]any{"type": "string", "description": "Text to search for"},
+					"scope": map[string]any{"type": "string", "description": "Optional scope"},
+					"limit": map[string]any{"type": "integer", "default": 20, "description": "Maximum matches (default 20, max 100)"},
+				},
+				"required":             []string{"query"},
+				"additionalProperties": false,
+			},
+		},
+		{
+			Name:        "tool_list",
+			Description: "List all available tools with their names and descriptions.",
+			InputSchema: map[string]any{
+				"type":                 "object",
+				"properties":           map[string]any{},
+				"additionalProperties": false,
+			},
+		},
+		{
+			Name:        "tool_schema",
+			Description: "Get the full definition for a specific tool.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"name": map[string]any{"type": "string", "description": "Tool name to look up"},
+				},
+				"required":             []string{"name"},
+				"additionalProperties": false,
+			},
+		},
+		{
+			Name:        "sys_info",
+			Description: "Return system info about the Wave server host (hostname, user, OS, arch, CPUs, Go, optional Wave details).",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"hostname": map[string]any{"type": "boolean", "description": "Include hostname (default: true)"},
+					"wave":     map[string]any{"type": "boolean", "description": "Include Wave details (default: true)"},
+					"full":     map[string]any{"type": "boolean", "description": "Include all fields"},
+				},
+				"additionalProperties": false,
+			},
+		},
+		{
+			Name:        "sys_env",
+			Description: "Return env vars from the Wave server process. Sensitive variables masked.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"names": map[string]any{
+						"type":        "array",
+						"items":       map[string]any{"type": "string"},
+						"description": "Optional list of env var names",
+					},
+				},
+				"additionalProperties": false,
+			},
+		},
+		{
+			Name:        "term_search_scrollback",
+			Description: "Search a terminal widget's scrollback for a pattern. Returns line numbers + snippets.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"widget_id":  map[string]any{"type": "string", "description": "8-char terminal widget ID"},
+					"pattern":    map[string]any{"type": "string", "description": "Pattern (substring; regex if isregex=true)"},
+					"isregex":    map[string]any{"type": "boolean", "description": "Treat as regex (default false)"},
+					"maxmatches": map[string]any{"type": "integer", "default": 50, "description": "Max matches (default 50, max 200)"},
+				},
+				"required":             []string{"widget_id", "pattern"},
+				"additionalProperties": false,
+			},
+		},
+		{
+			Name:        "widget_clear_scrollback",
+			Description: "Clear a terminal widget's scrollback buffer. Destructive.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"widget_id": map[string]any{"type": "string", "description": "8-char terminal widget ID"},
+				},
+				"required":             []string{"widget_id"},
+				"additionalProperties": false,
+			},
+		},
 	}
 }
 
@@ -348,6 +520,29 @@ func handleToolCall(name string, args map[string]any) ToolCallResult {
 		return callTermSendInput(args)
 	case "term_list_widgets":
 		return callTermListWidgets(args)
+	case "note_put":
+		return callNotePut(args)
+	case "note_get":
+		return callNoteGet(args)
+	case "note_list":
+		return callNoteList(args)
+	case "note_delete":
+		return callNoteDelete(args)
+	case "note_search":
+		return callNoteSearch(args)
+	case "tool_list":
+		return ToolCallResult{Content: []ToolContent{{Type: "text", Text: callToolList()}}}
+	case "tool_schema":
+		return callToolSchema(args)
+	case "sys_info":
+		return callSysInfo(args)
+	case "sys_env":
+		return callSysEnv(args)
+		return callSysEnv(args)
+	case "term_search_scrollback":
+		return callTermSearchScrollback(args)
+	case "widget_clear_scrollback":
+		return callWidgetClearScrollback(args)
 	default:
 		return ToolCallResult{
 			IsError: true,
@@ -843,5 +1038,348 @@ func errResult(msg string) ToolCallResult {
 	return ToolCallResult{
 		IsError: true,
 		Content: []ToolContent{{Type: "text", Text: msg}},
+	}
+}
+
+func callNotePut(args map[string]any) ToolCallResult {
+	bodyRaw, ok := args["body"]
+	if !ok {
+		return errResult("missing 'body' argument")
+	}
+	body, ok := bodyRaw.(string)
+	if !ok {
+		return errResult("'body' must be a string")
+	}
+	body = strings.TrimSpace(body)
+	if body == "" {
+		return errResult("body cannot be empty")
+	}
+	scope := ""
+	if s, ok := args["scope"].(string); ok {
+		scope = s
+	}
+	key := ""
+	if k, ok := args["key"].(string); ok {
+		key = k
+	}
+	workspaceId := ""
+	if w, ok := args["workspaceid"].(string); ok {
+		workspaceId = w
+	}
+	var tags []string
+	if rawTags, ok := args["tags"].([]any); ok {
+		for _, t := range rawTags {
+			if s, ok := t.(string); ok && s != "" {
+				tags = append(tags, s)
+			}
+		}
+	}
+	ttlSec := 0
+	if ttlRaw, ok := args["ttlsec"]; ok {
+		if ttlFloat, ok := ttlRaw.(float64); ok && ttlFloat > 0 {
+			ttlSec = int(ttlFloat)
+		}
+	}
+	store := aistore.GetMemoryStore()
+	opts := aistore.MemoryOpts{
+		WorkspaceId: workspaceId,
+		Scope:       scope,
+		Key:         key,
+		Tags:        tags,
+		TtlSec:      ttlSec,
+	}
+	id, err := store.Put(context.Background(), opts, body)
+	if err != nil {
+		return errResult(fmt.Sprintf("failed to save note: %v", err))
+	}
+	return ToolCallResult{
+		Content: []ToolContent{{Type: "text", Text: fmt.Sprintf("Note saved with ID: %s", id)}},
+	}
+}
+
+func callNoteGet(args map[string]any) ToolCallResult {
+	workspaceId := ""
+	if w, ok := args["workspaceid"].(string); ok {
+		workspaceId = w
+	}
+	scope := ""
+	if s, ok := args["scope"].(string); ok {
+		scope = s
+	}
+	id := ""
+	if i, ok := args["id"].(string); ok {
+		id = i
+	}
+	key := ""
+	if k, ok := args["key"].(string); ok {
+		key = k
+	}
+	if id == "" && key == "" {
+		return errResult("either 'id' or 'key' is required")
+	}
+	store := aistore.GetMemoryStore()
+	var rec *aistore.MemoryRecord
+	var err error
+	if key != "" {
+		rec, err = store.GetByKey(context.Background(), workspaceId, scope, key)
+	} else {
+		rec, err = store.Get(context.Background(), workspaceId, id)
+	}
+	if err != nil {
+		return errResult(err.Error())
+	}
+	if rec == nil {
+		return errResult("note not found")
+	}
+	var out strings.Builder
+	fmt.Fprintf(&out, "ID: %s\n", rec.Id)
+	fmt.Fprintf(&out, "Body: %s\n", rec.Body)
+	if rec.Key != "" {
+		fmt.Fprintf(&out, "Key: %s\n", rec.Key)
+	}
+	if rec.Scope != "" {
+		fmt.Fprintf(&out, "Scope: %s\n", rec.Scope)
+	}
+	if len(rec.Tags) > 0 {
+		fmt.Fprintf(&out, "Tags: %s\n", strings.Join(rec.Tags, ", "))
+	}
+	fmt.Fprintf(&out, "Created: %s\n", time.UnixMilli(rec.CreatedAt).UTC().Format(time.RFC3339))
+	if rec.TtlSec > 0 {
+		expiresMs := rec.CreatedAt + int64(rec.TtlSec)*1000
+		fmt.Fprintf(&out, "Expires: %s\n", time.UnixMilli(expiresMs).UTC().Format(time.RFC3339))
+	}
+	return ToolCallResult{
+		Content: []ToolContent{{Type: "text", Text: out.String()}},
+	}
+}
+
+func callNoteList(args map[string]any) ToolCallResult {
+	workspaceId := ""
+	if w, ok := args["workspaceid"].(string); ok {
+		workspaceId = w
+	}
+	scope := ""
+	if s, ok := args["scope"].(string); ok {
+		scope = s
+	}
+	tagGlob := ""
+	if tg, ok := args["tagglob"].(string); ok {
+		tagGlob = tg
+	}
+	limit := 50
+	if l, ok := args["limit"].(float64); ok {
+		limit = int(l)
+		if limit < 1 {
+			limit = 1
+		}
+		if limit > 200 {
+			limit = 200
+		}
+	}
+	store := aistore.GetMemoryStore()
+	records, cursor, err := store.List(context.Background(), aistore.MemoryListOpts{
+		WorkspaceId: workspaceId,
+		Scope:       scope,
+		TagGlob:     tagGlob,
+		Limit:       limit,
+	})
+	if err != nil {
+		return errResult(err.Error())
+	}
+	if len(records) == 0 {
+		return ToolCallResult{
+			Content: []ToolContent{{Type: "text", Text: "No notes found."}},
+		}
+	}
+	var out strings.Builder
+	fmt.Fprintf(&out, "Found %d notes:\n\n", len(records))
+	for _, r := range records {
+		preview := r.Body
+		if len(preview) > 200 {
+			preview = preview[:200] + "..."
+		}
+		fmt.Fprintf(&out, "- ID: %s\n", r.Id)
+		if r.Key != "" {
+			fmt.Fprintf(&out, "  Key: %s\n", r.Key)
+		}
+		if r.Scope != "" {
+			fmt.Fprintf(&out, "  Scope: %s\n", r.Scope)
+		}
+		fmt.Fprintf(&out, "  Body: %s\n", preview)
+		fmt.Fprintf(&out, "  Updated: %s\n", time.UnixMilli(r.UpdatedAt).UTC().Format(time.RFC3339))
+		if len(r.Tags) > 0 {
+			fmt.Fprintf(&out, "  Tags: %s\n", strings.Join(r.Tags, ", "))
+		}
+		out.WriteString("\n")
+	}
+	if cursor != "" {
+		fmt.Fprintf(&out, "(more results available, cursor: %s)\n", cursor)
+	}
+	return ToolCallResult{
+		Content: []ToolContent{{Type: "text", Text: out.String()}},
+	}
+}
+
+func callNoteDelete(args map[string]any) ToolCallResult {
+	idRaw, ok := args["id"]
+	if !ok {
+		return errResult("missing 'id' argument")
+	}
+	id, ok := idRaw.(string)
+	if !ok {
+		return errResult("'id' must be a string")
+	}
+	if id == "" {
+		return errResult("'id' cannot be empty")
+	}
+	workspaceId := ""
+	if w, ok := args["workspaceid"].(string); ok {
+		workspaceId = w
+	}
+	store := aistore.GetMemoryStore()
+	deleted, err := store.Delete(context.Background(), workspaceId, id)
+	if err != nil {
+		return errResult(err.Error())
+	}
+	if !deleted {
+		return ToolCallResult{
+			Content: []ToolContent{{Type: "text", Text: fmt.Sprintf("No note found with ID: %s", id)}},
+		}
+	}
+	return ToolCallResult{
+		Content: []ToolContent{{Type: "text", Text: fmt.Sprintf("Deleted note: %s", id)}},
+	}
+}
+
+func callNoteSearch(args map[string]any) ToolCallResult {
+	queryRaw, ok := args["query"]
+	if !ok {
+		return errResult("missing 'query' argument")
+	}
+	query, ok := queryRaw.(string)
+	if !ok {
+		return errResult("'query' must be a string")
+	}
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return errResult("query cannot be empty")
+	}
+	workspaceId := ""
+	if w, ok := args["workspaceid"].(string); ok {
+		workspaceId = w
+	}
+	scope := ""
+	if s, ok := args["scope"].(string); ok {
+		scope = s
+	}
+	limit := 20
+	if l, ok := args["limit"].(float64); ok {
+		limit = int(l)
+		if limit < 1 {
+			limit = 1
+		}
+		if limit > 100 {
+			limit = 100
+		}
+	}
+	store := aistore.GetMemoryStore()
+	matches, err := store.Search(context.Background(), workspaceId, scope, query, limit)
+	if err != nil {
+		return errResult(err.Error())
+	}
+	if len(matches) == 0 {
+		return ToolCallResult{
+			Content: []ToolContent{{Type: "text", Text: fmt.Sprintf("No matches found for %q.", query)}},
+		}
+	}
+	var out strings.Builder
+	fmt.Fprintf(&out, "Found %d matches for %q:\n\n", len(matches), query)
+	for _, m := range matches {
+		fmt.Fprintf(&out, "- ID: %s\n", m.Id)
+		if m.Scope != "" {
+			fmt.Fprintf(&out, "  Scope: %s\n", m.Scope)
+		}
+		if m.Key != "" {
+			fmt.Fprintf(&out, "  Key: %s\n", m.Key)
+		}
+		fmt.Fprintf(&out, "  Match: %s\n", m.Snippet)
+		out.WriteString("\n")
+	}
+	return ToolCallResult{
+		Content: []ToolContent{{Type: "text", Text: out.String()}},
+	}
+}
+
+func callToolList() string {
+	var out strings.Builder
+	fmt.Fprintln(&out, "Available tools:")
+	for _, t := range defineTools() {
+		fmt.Fprintf(&out, "- %s: %s\n", t.Name, t.Description)
+	}
+	return out.String()
+}
+
+func callToolSchema(args map[string]any) ToolCallResult {
+	nameRaw, ok := args["name"]
+	if !ok {
+		return errResult("missing 'name' argument")
+	}
+	name, ok := nameRaw.(string)
+	if !ok {
+		return errResult("'name' must be a string")
+	}
+	schemaBytes, err := json.MarshalIndent(getToolSchema(name), "", "  ")
+	if err != nil {
+		return errResult(err.Error())
+	}
+	return ToolCallResult{
+		Content: []ToolContent{{Type: "text", Text: string(schemaBytes)}},
+	}
+}
+
+func getToolSchema(name string) ToolDefinition {
+	for _, t := range defineTools() {
+		if t.Name == name {
+			return t
+		}
+	}
+	return ToolDefinition{}
+}
+
+func callSysInfo(args map[string]any) ToolCallResult {
+	return ToolCallResult{
+		Content: []ToolContent{{
+			Type: "text",
+			Text: "System info: OS=" + runtime.GOOS + " Arch=" + runtime.GOARCH + " CPUs=" + fmt.Sprintf("%d", runtime.NumCPU()) + " Go=" + runtime.Version(),
+		}},
+	}
+}
+
+func callSysEnv(args map[string]any) ToolCallResult {
+	var names []string
+	if raw, ok := args["names"].([]any); ok {
+		for _, n := range raw {
+			if s, ok := n.(string); ok && s != "" {
+				names = append(names, s)
+			}
+		}
+	}
+	env := make(map[string]string)
+	if len(names) == 0 {
+		for _, kv := range os.Environ() {
+			if eq := strings.IndexByte(kv, '='); eq > 0 {
+				env[kv[:eq]] = kv[eq+1:]
+			}
+		}
+	} else {
+		for _, n := range names {
+			if v, ok := os.LookupEnv(n); ok {
+				env[n] = v
+			}
+		}
+	}
+	data, _ := json.Marshal(env)
+	return ToolCallResult{
+		Content: []ToolContent{{Type: "text", Text: string(data)}},
 	}
 }

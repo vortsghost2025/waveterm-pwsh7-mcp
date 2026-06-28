@@ -1,10 +1,10 @@
 package main
 
 import (
-	"encoding/base64"
 	"fmt"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/wshrpc"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc/wshclient"
@@ -12,9 +12,17 @@ import (
 )
 
 var (
-	rpcClient     *wshutil.WshRpc
-	rpcClientOnce sync.Once
-	rpcClientErr  error
+	rpcClient       *wshutil.WshRpc
+	rpcClientOnce   sync.Once
+	rpcClientErr    error
+	_               string // agent JWT used inline, not stored
+	agentJwtExpiry  time.Time
+	agentJwtMu      sync.Mutex
+)
+
+const (
+	agentTokenDuration       = 60 * time.Minute
+	agentTokenRefreshMargin  = 5 * time.Minute
 )
 
 func getRpcClient() (*wshutil.WshRpc, error) {
@@ -39,9 +47,49 @@ func getRpcClient() (*wshutil.WshRpc, error) {
 			rpcClientErr = fmt.Errorf("authenticating with JWT: %w", err)
 			return
 		}
+
+		agentRtn, err := wshclient.AgentIssueTokenCommand(client, wshrpc.AgentIssueTokenData{
+			DurationMinutes: int(agentTokenDuration.Minutes()),
+		}, &wshrpc.RpcOpts{Timeout: 5000})
+		if err != nil {
+			rpcClientErr = fmt.Errorf("issuing agent JWT: %w", err)
+			return
+		}
+
+		_, err = wshclient.AuthenticateCommand(client, agentRtn.Token, &wshrpc.RpcOpts{Route: wshutil.ControlRoute})
+		if err != nil {
+			rpcClientErr = fmt.Errorf("authenticating with agent JWT: %w", err)
+			return
+		}
+
+		agentJwtExpiry = time.Now().Add(agentTokenDuration - agentTokenRefreshMargin)
 		rpcClient = client
 	})
 	return rpcClient, rpcClientErr
+}
+
+func ensureAgentClient() (*wshutil.WshRpc, error) {
+	client, err := getRpcClient()
+	if err != nil {
+		return nil, err
+	}
+	agentJwtMu.Lock()
+	defer agentJwtMu.Unlock()
+	if time.Now().Before(agentJwtExpiry) {
+		return client, nil
+	}
+	rtn, err := wshclient.AgentIssueTokenCommand(client, wshrpc.AgentIssueTokenData{
+		DurationMinutes: int(agentTokenDuration.Minutes()),
+	}, &wshrpc.RpcOpts{Timeout: 5000})
+	if err != nil {
+		return nil, fmt.Errorf("refreshing agent JWT: %w", err)
+	}
+	_, err = wshclient.AuthenticateCommand(client, rtn.Token, &wshrpc.RpcOpts{Route: wshutil.ControlRoute})
+	if err != nil {
+		return nil, fmt.Errorf("re-authenticating with refreshed agent JWT: %w", err)
+	}
+	agentJwtExpiry = time.Now().Add(agentTokenDuration - agentTokenRefreshMargin)
+	return client, nil
 }
 
 type WidgetInfo struct {
@@ -52,76 +100,105 @@ type WidgetInfo struct {
 }
 
 func rpcListWidgets() ([]WidgetInfo, error) {
-	client, err := getRpcClient()
+	client, err := ensureAgentClient()
 	if err != nil {
 		return nil, err
 	}
 
-	workspaces, err := wshclient.WorkspaceListCommand(client, &wshrpc.RpcOpts{Timeout: 10000})
+	entries, err := wshclient.AgentListBlocksCommand(client, wshrpc.AgentListBlocksData{
+		BlockType: "term",
+	}, &wshrpc.RpcOpts{Timeout: 10000})
 	if err != nil {
-		return nil, fmt.Errorf("listing workspaces: %w", err)
+		return nil, fmt.Errorf("listing blocks: %w", err)
 	}
 
 	var widgets []WidgetInfo
-	for _, ws := range workspaces {
-		blocks, err := wshclient.BlocksListCommand(client, wshrpc.BlocksListRequest{
-			WorkspaceId: ws.WorkspaceData.OID,
-		}, &wshrpc.RpcOpts{Timeout: 10000})
-		if err != nil {
-			continue
-		}
-		for _, b := range blocks {
-			viewType := b.Meta.GetString("view", "")
-			if viewType != "term" {
-				continue
-			}
-			widgets = append(widgets, WidgetInfo{
-				BlockId:   b.BlockId,
-				TabId:     b.TabId,
-				ViewType:  viewType,
-			})
-		}
+	for _, b := range entries {
+		widgets = append(widgets, WidgetInfo{
+			BlockId:  b.BlockId,
+			TabId:    b.TabId,
+			ViewType: "term",
+		})
 	}
 	return widgets, nil
 }
 
 func rpcGetScrollback(blockId string, lineStart, lineEnd int) (*wshrpc.CommandTermGetScrollbackLinesRtnData, error) {
-	client, err := getRpcClient()
+	client, err := ensureAgentClient()
 	if err != nil {
 		return nil, err
 	}
-	data := wshrpc.CommandTermGetScrollbackLinesData{
+	data := wshrpc.AgentGetScrollbackData{
+		BlockId:   blockId,
 		LineStart: lineStart,
 		LineEnd:   lineEnd,
 	}
-	opts := &wshrpc.RpcOpts{
-		Route:   wshutil.MakeFeBlockRouteId(blockId),
-		Timeout: int64(termScrollbackTimeoutMs),
-	}
-	return wshclient.TermGetScrollbackLinesCommand(client, data, opts)
+	opts := &wshrpc.RpcOpts{Timeout: int64(termScrollbackTimeoutMs)}
+	return wshclient.AgentGetScrollbackCommand(client, data, opts)
 }
 
-func rpcTermInfo(blockId string) (*wshrpc.TermInfo, error) {
-	client, err := getRpcClient()
+func rpcTermInfo(blockId string) (*wshrpc.AgentListTerminalsRtnData, error) {
+	client, err := ensureAgentClient()
 	if err != nil {
 		return nil, err
 	}
-	return wshclient.TermInfoCommand(client, wshrpc.TermInfoRequest{BlockID: blockId}, &wshrpc.RpcOpts{Timeout: 5000})
+	return wshclient.AgentListTerminalsCommand(client, wshrpc.AgentListTerminalsData{}, &wshrpc.RpcOpts{Timeout: 5000})
 }
 
-func rpcSendInput(blockId string, text string) error {
-	client, err := getRpcClient()
+func rpcSendInput(blockId string, text string, enter bool) error {
+	client, err := ensureAgentClient()
 	if err != nil {
 		return err
 	}
-	encoded := base64.StdEncoding.EncodeToString([]byte(text))
-	data := wshrpc.CommandBlockInputData{
-		BlockId:     blockId,
-		InputData64: encoded,
+	data := wshrpc.AgentSendInputData{
+		BlockId:   blockId,
+		InputData: text,
+		Enter:     enter,
+	}
+	opts := &wshrpc.RpcOpts{Timeout: 10000}
+	return wshclient.AgentSendInputCommand(client, data, opts)
+}
+
+func rpcRunCommand(command string, timeoutMs int) (*wshrpc.AgentRunCommandRtnData, error) {
+	client, err := ensureAgentClient()
+	if err != nil {
+		return nil, err
+	}
+	data := wshrpc.AgentRunCommandData{
+		Command: command,
+		Timeout: timeoutMs / 1000,
+	}
+	opts := &wshrpc.RpcOpts{Timeout: int64(timeoutMs) + 2000}
+	return wshclient.AgentRunCommandCommand(client, data, opts)
+}
+
+func rpcTermSearchScrollback(blockId, pattern string, isRegex bool, maxMatches int) (*wshrpc.CommandTermSearchScrollbackRtnData, error) {
+	client, err := ensureAgentClient()
+	if err != nil {
+		return nil, err
+	}
+	data := wshrpc.CommandTermSearchScrollbackData{
+		BlockId:    blockId,
+		Pattern:    pattern,
+		IsRegex:    isRegex,
+		MaxMatches: maxMatches,
 	}
 	opts := &wshrpc.RpcOpts{
-		Route:   wshutil.MakeFeBlockRouteId(blockId),
 		Timeout: 10000,
+		Route:   wshutil.MakeFeBlockRouteId(blockId),
 	}
-	return wshclient.ControllerInputCommand(client, data, opts)
+	return wshclient.TermSearchScrollbackCommand(client, data, opts)
+}
+
+func rpcWidgetClearScrollback(blockId string) error {
+	client, err := ensureAgentClient()
+	if err != nil {
+		return err
+	}
+	data := wshrpc.WidgetClearScrollbackData{BlockId: blockId}
+	opts := &wshrpc.RpcOpts{
+		Timeout: 10000,
+		Route:   wshutil.MakeFeBlockRouteId(blockId),
+	}
+	return wshclient.WidgetClearScrollbackCommand(client, data, opts)
 }

@@ -525,7 +525,12 @@ func ResolveToolCall(toolDef *uctypes.ToolDefinition, toolCall uctypes.WaveToolC
 	} else if toolDef.ToolAnyCallback != nil {
 		output, err := toolDef.ToolAnyCallback(toolCall.Input, toolCall.ToolUseData)
 		if err != nil {
-			result.ErrorText = err.Error()
+			if toolErr, ok := err.(*aiutil.ToolError); ok {
+				errJSON, _ := json.Marshal(toolErr)
+				result.ErrorText = string(errJSON)
+			} else {
+				result.ErrorText = err.Error()
+			}
 		} else {
 			// Marshal the result to JSON
 			jsonBytes, marshalErr := json.Marshal(output)

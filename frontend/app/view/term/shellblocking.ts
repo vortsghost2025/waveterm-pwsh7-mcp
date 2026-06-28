@@ -6,7 +6,7 @@ const ALWAYS_BLOCK = [
     // multiplexers
     "tmux", "screen", "byobu", "dtach", "abduco", "tmate",
     // editors/pagers
-    "vim", "nvim", "emacs", "nano", "less", "more", "man", "most", "view",
+    "vim", "nvim", "emacs", "nano", "man", "most", "view",
     // TUIs / tools
     "htop", "top", "btop", "fzf", "ranger", "mc", "nnn", "k9s", "nmtui", "alsamixer",
     "tig", "gdb", "lldb",
@@ -53,6 +53,16 @@ function isNonInteractiveShellExec(args: string[]): boolean {
     );
 }
 
+// AI coding tools that coexist with Wave AI — always allowed even in alt buffer
+const AI_CODING_TOOLS = [
+    "opencode", "claude", "codex", "aider", "cursor", "copilot", "bridge",
+];
+
+function isAiCodingTool(cmd: string): boolean {
+    const lower = cmd.replace(/\.exe$/i, "").toLowerCase();
+    return AI_CODING_TOOLS.includes(lower);
+}
+
 function isAttachLike(cmd: string, args: string[]): boolean {
     if (cmd === "docker" || cmd === "podman") {
         if (args[0] === "attach") return true;
@@ -86,7 +96,7 @@ export function getBlockingCommand(lastCommand: string | null, inAltBuffer: bool
     const first = words[0].split("/").pop()!;
     const args = words.slice(1);
 
-    if (inAltBuffer) return first;
+    if (inAltBuffer && !isAiCodingTool(first)) return first;
 
     if (ALWAYS_BLOCK.includes(first)) return first;
 

@@ -173,9 +173,12 @@ func GenerateTabStateAndTools(ctx context.Context, tabid string, widgetAccess bo
 		tools = append(tools, GetReadDirToolDefinition())
 		tools = append(tools, GetWriteTextFileToolDefinition())
 		tools = append(tools, GetEditTextFileToolDefinition())
+		tools = append(tools, GetWebFetchToolDefinition())
+		tools = append(tools, GetWebSearchToolDefinition())
 		tools = append(tools, GetDeleteTextFileToolDefinition())
 		tools = append(tools, GetBridgeReadInboxToolDefinition())
 		tools = append(tools, GetBridgeWriteReplyToolDefinition())
+		tools = append(tools, GetAISelfIntroToolDefinition())
 		tools = append(tools, GetRunCommandToolDefinition())
 		tools = append(tools, GetRunInteractiveCommandToolDefinition())
 		tools = append(tools, GetGrepToolDefinition())
@@ -184,6 +187,13 @@ func GenerateTabStateAndTools(ctx context.Context, tabid string, widgetAccess bo
 		tools = append(tools, GetTermListWidgetsToolDefinition(tabid))
 		tools = append(tools, GetListWorkspacesToolDefinition())
 		tools = append(tools, GetListTabsToolDefinition())
+		tools = append(tools, GetNotePutToolDefinition())
+		tools = append(tools, GetNoteGetToolDefinition())
+		tools = append(tools, GetNoteListToolDefinition())
+		tools = append(tools, GetNoteDeleteToolDefinition())
+		tools = append(tools, GetNoteSearchToolDefinition())
+		tools = append(tools, GetSysInfoToolDefinition())
+		tools = append(tools, GetSysEnvToolDefinition())
 		tools = append(tools, GetGetWidgetToolDefinition())
 		tools = append(tools, GetScanTerminalsToolDefinition())
 		viewTypes := make(map[string]bool)
@@ -207,6 +217,8 @@ func GenerateTabStateAndTools(ctx context.Context, tabid string, widgetAccess bo
 			tools = append(tools, GetTermRunCommandToolDefinition(tabid))
 			tools = append(tools, GetTermSpawnAgentToolDefinition(tabid))
 			tools = append(tools, GetTermGetAgentStatusToolDefinition(tabid))
+			tools = append(tools, GetTermSearchScrollbackToolDefinition(tabid))
+			tools = append(tools, GetWidgetClearScrollbackToolDefinition(tabid))
 			// tools = append(tools, GetTermCommandOutputToolDefinition(tabid))
 		}
 
@@ -230,6 +242,8 @@ func GenerateTabStateAndTools(ctx context.Context, tabid string, widgetAccess bo
 			tools = append(tools, GetWebNavigateToolDefinition(tabid))
 		}
 	}
+	tools = append(tools, GetToolListToolDefinition(chatOpts))
+	tools = append(tools, GetToolSchemaToolDefinition(chatOpts))
 	return tabState, tools, nil
 }
 
@@ -349,4 +363,107 @@ func GetAdderToolDefinition() uctypes.ToolDefinition {
 			return sum, nil
 		},
 	}
+}
+
+func GetToolListToolDefinition(chatOpts *uctypes.WaveChatOpts) uctypes.ToolDefinition {
+	return uctypes.ToolDefinition{
+		Name:        "tool_list",
+		DisplayName: "List Available Tools",
+		Description: "Return a list of all available tools with their names and descriptions. Use this to discover what tools you can call.",
+		ToolLogName: "gen:tool_list",
+		Strict:      true,
+		InputSchema: map[string]any{
+			"type":       "object",
+			"properties": map[string]any{},
+		},
+		ToolAnyCallback: func(input any, toolUseData *uctypes.UIMessageDataToolUse) (any, error) {
+			tools := chatOpts.Tools
+			if chatOpts.TabTools != nil {
+				tools = append(tools, chatOpts.TabTools...)
+			}
+			list := make([]map[string]any, 0, len(tools))
+			for _, tool := range tools {
+				if tool.Name == "tool_list" || tool.Name == "tool_schema" {
+					continue
+				}
+				list = append(list, map[string]any{
+					"name":        tool.Name,
+					"description": tool.Description,
+				})
+			}
+			return map[string]any{"tools": list}, nil
+		},
+		ToolApproval: func(input any) string {
+			return uctypes.ApprovalAutoApproved
+		},
+		ToolVerifyInput: func(input any, toolUseData *uctypes.UIMessageDataToolUse) error {
+			return nil
+		},
+	}
+}
+
+func GetToolSchemaToolDefinition(chatOpts *uctypes.WaveChatOpts) uctypes.ToolDefinition {
+	return uctypes.ToolDefinition{
+		Name:        "tool_schema",
+		DisplayName: "Get Tool Schema",
+		Description: "Return the full input schema for a named tool. Use tool_list first to discover available tools.",
+		ToolLogName: "gen:tool_schema",
+		Strict:      true,
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"name": map[string]any{
+					"type":        "string",
+					"description": "Name of the tool to get the schema for",
+				},
+			},
+			"required":             []string{"name"},
+			"additionalProperties": false,
+		},
+		ToolAnyCallback: func(input any, toolUseData *uctypes.UIMessageDataToolUse) (any, error) {
+			parsed, err := parseToolSchemaInput(input)
+			if err != nil {
+				return nil, err
+			}
+			tools := chatOpts.Tools
+			if chatOpts.TabTools != nil {
+				tools = append(tools, chatOpts.TabTools...)
+			}
+			for _, tool := range tools {
+				if tool.Name == parsed.Name {
+					return map[string]any{
+						"name":        tool.Name,
+						"description": tool.Description,
+						"input_schema": tool.InputSchema,
+					}, nil
+				}
+			}
+			return nil, fmt.Errorf("tool %q not found", parsed.Name)
+		},
+		ToolApproval: func(input any) string {
+			return uctypes.ApprovalAutoApproved
+		},
+		ToolVerifyInput: func(input any, toolUseData *uctypes.UIMessageDataToolUse) error {
+			_, err := parseToolSchemaInput(input)
+			return err
+		},
+	}
+}
+
+type toolSchemaInput struct {
+	Name string `json:"name"`
+}
+
+func parseToolSchemaInput(input any) (*toolSchemaInput, error) {
+	result := &toolSchemaInput{}
+	if input == nil {
+		return nil, fmt.Errorf("input is required")
+	}
+	if err := utilfn.ReUnmarshal(result, input); err != nil {
+		return nil, fmt.Errorf("invalid input format: %w", err)
+	}
+	if result.Name == "" {
+		return nil, fmt.Errorf("name is required")
+	}
+	return result, nil
 }

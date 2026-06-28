@@ -63,6 +63,7 @@ type linkMeta struct {
 	linkKind      string
 	sourceRouteId string
 	client        AbstractRpcClient
+	agent         bool
 }
 
 func (lm *linkMeta) Name() string {
@@ -529,6 +530,16 @@ func (router *WshRouter) trustLink(linkId baseds.LinkId, linkKind string) {
 	lm.linkKind = linkKind
 }
 
+func (router *WshRouter) tagLinkAsAgent(linkId baseds.LinkId) {
+	router.lock.Lock()
+	defer router.lock.Unlock()
+	lm := router.linkMap[linkId]
+	if lm == nil {
+		return
+	}
+	lm.agent = true
+}
+
 func (router *WshRouter) runLinkClientRecvLoop(linkId baseds.LinkId, client AbstractRpcClient) {
 	defer func() {
 		panichandler.PanicHandler("WshRouter:runLinkClientRecvLoop", recover())
@@ -576,6 +587,10 @@ func (router *WshRouter) runLinkClientRecvLoop(linkId baseds.LinkId, client Abst
 					continue
 				}
 				log.Printf("wshrouter control-msg route=%s link=%s command=%s source=%s", rpcMsg.Route, lm.Name(), rpcMsg.Command, rpcMsg.Source)
+			}
+			if lm.agent && !isAgentAllowedCommand(rpcMsg.Command) {
+				sendControlErrorResponse(rpcMsg, *lm, router, fmt.Errorf("agent not allowed: %s", rpcMsg.Command))
+				continue
 			}
 		} else {
 			// non-request messages (responses)
@@ -855,4 +870,17 @@ func sendControlUnauthenticatedErrorResponse(cmdMsg RpcMessage, linkMeta linkMet
 	}
 	rtnBytes, _ := json.Marshal(rtnMsg)
 	router.sendRpcMessageToLink(linkMeta.linkId, linkMeta.client, rtnBytes, baseds.NoLinkId, "unauthenticated")
+}
+
+func sendControlErrorResponse(cmdMsg RpcMessage, linkMeta linkMeta, router *WshRouter, err error) {
+	if cmdMsg.ReqId == "" {
+		return
+	}
+	rtnMsg := RpcMessage{
+		Source: ControlRoute,
+		ResId:  cmdMsg.ReqId,
+		Error:  err.Error(),
+	}
+	rtnBytes, _ := json.Marshal(rtnMsg)
+	router.sendRpcMessageToLink(linkMeta.linkId, linkMeta.client, rtnBytes, baseds.NoLinkId, "agent-denied")
 }

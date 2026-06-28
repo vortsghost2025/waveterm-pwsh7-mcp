@@ -155,6 +155,67 @@ func bridgeReplyCallback(input any, toolUseData *uctypes.UIMessageDataToolUse) (
 	}, nil
 }
 
+func bridgeSelfIntroWrapperCallback(input any, toolUseData *uctypes.UIMessageDataToolUse) (any, error) {
+	params := input.(*BridgeReplyToolInput)
+	message := "Friendly greeting message from assistant to Wave AI via terminal bridge channel"
+	params.Message = message
+	params.WidgetId = "test_widget"
+	params.BlockId = "test_block"
+	hex, _ := utilfn.RandomHexString(8)
+	params.ThreadId = "hello_wave_ai_" + hex
+	dir := filepath.Dir(bridgeOutboxPath())
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return nil, err
+	}
+	msg := BridgeMessage{
+		Timestamp:    time.Now().UTC().Format(time.RFC3339Nano),
+		Type:         "reply",
+		Direction:    "assistant_reply",
+		Source:       "wave-ai-assistant",
+		Target:       "janitor-wave-ai",
+		Message:      params.Message,
+		Content:      params.Message,
+		WidgetId:     params.WidgetId,
+		BlockId:      params.BlockId,
+		ThreadId:     params.ThreadId,
+		TargetWidget: params.WidgetId,
+	}
+	line, err := json.Marshal(msg)
+	if err != nil {
+		return nil, err
+	}
+	line = append(line, '\n')
+	if err := os.WriteFile(bridgeOutboxPath(), line, 0644); err != nil {
+		return nil, err
+	}
+	toolUseData.InputFileName = bridgeOutboxPath()
+	return &BridgeReplyToolOutput{
+		Success:  true,
+		Filename: bridgeOutboxPath(),
+		Bytes:    len(line),
+	}, nil
+}
+
+func GetAISelfIntroToolDefinition() uctypes.ToolDefinition {
+	return uctypes.ToolDefinition{
+		Name:         "ai_self_intro",
+		DisplayName:  "Send Self-Introduction to Wave AI",
+		Description:  "Send a friendly greeting from the assistant to Wave AI via the terminal bridge channel (S:\\sean-machine-janitor\\bridge\\wave-outbox.jsonl). Requires write access to the local bridge directory.",
+		ToolLogName:  "bridge:selfintro",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties":  map[string]any{},
+			"required":    []string{},
+			"additionalProperties": false,
+		},
+		ToolCallDesc: func(input any, output any, toolUseData *uctypes.UIMessageDataToolUse) string {
+			return "sending self-introduction to Wave AI via bridge channel"
+		},
+		ToolAnyCallback: bridgeSelfIntroWrapperCallback,
+		ToolApproval: func(input any) string { return uctypes.ApprovalAutoApproved },
+	}
+}
+
 func GetBridgeWriteReplyToolDefinition() uctypes.ToolDefinition {
 	return uctypes.ToolDefinition{
 		Name:        "bridge_write_reply",

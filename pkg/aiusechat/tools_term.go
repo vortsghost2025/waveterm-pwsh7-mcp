@@ -1131,6 +1131,17 @@ func GetTermRunCommandToolDefinition(tabId string) uctypes.ToolDefinition {
 			}
 			return fmt.Sprintf("running %q in terminal %s (timeout %dms)", cmdPreview, parsed.WidgetId, parsed.WaitTimeoutMs)
 		},
+		ToolProgressDesc: func(input any) ([]string, error) {
+			parsed, err := parseTermRunCommandInput(input)
+			if err != nil {
+				return nil, err
+			}
+			cmdPreview := parsed.Command
+			if len(cmdPreview) > 40 {
+				cmdPreview = cmdPreview[:37] + "..."
+			}
+			return []string{fmt.Sprintf("running %q in %s", cmdPreview, parsed.WidgetId)}, nil
+		},
 		ToolApproval: func(input any) string {
 			return uctypes.ApprovalAutoApproved
 		},

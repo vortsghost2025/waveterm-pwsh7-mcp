@@ -80,6 +80,63 @@ declare global {
         conn?: {[key: string]: number};
     };
 
+    // wshrpc.AgentGetScrollbackData
+    type AgentGetScrollbackData = {
+        blockid: string;
+        linestart?: number;
+        lineend?: number;
+        lastcommand?: boolean;
+    };
+
+    // wshrpc.AgentIssueTokenData
+    type AgentIssueTokenData = {
+        durationminutes?: number;
+    };
+
+    // wshrpc.AgentIssueTokenRtnData
+    type AgentIssueTokenRtnData = {
+        token: string;
+    };
+
+    // wshrpc.AgentListBlocksData
+    type AgentListBlocksData = {
+        blocktype?: string;
+    };
+
+    // wshrpc.AgentListTerminalsData
+    type AgentListTerminalsData = object;
+
+    // wshrpc.AgentListTerminalsRtnData
+    type AgentListTerminalsRtnData = {
+        terminals: AgentTerminalInfo[];
+    };
+
+    // wshrpc.AgentRunCommandData
+    type AgentRunCommandData = {
+        command: string;
+        timeout?: number;
+    };
+
+    // wshrpc.AgentRunCommandRtnData
+    type AgentRunCommandRtnData = {
+        exitcode?: number;
+        output?: string;
+    };
+
+    // wshrpc.AgentSendInputData
+    type AgentSendInputData = {
+        blockid: string;
+        inputdata: string;
+        enter?: boolean;
+    };
+
+    // wshrpc.AgentTerminalInfo
+    type AgentTerminalInfo = {
+        blockid: string;
+        state: string;
+        cwd?: string;
+    };
+
     // wshrpc.AiMessageData
     type AiMessageData = {
         message?: string;
@@ -709,6 +766,7 @@ declare global {
 
     // wshrpc.CommandTermGetScrollbackLinesData
     type CommandTermGetScrollbackLinesData = {
+        blockid?: string;
         linestart: number;
         lineend: number;
         lastcommand: boolean;
@@ -720,6 +778,21 @@ declare global {
         linestart: number;
         lines: string[];
         lastupdated: number;
+    };
+
+    // wshrpc.CommandTermSearchScrollbackData
+    type CommandTermSearchScrollbackData = {
+        blockid?: string;
+        pattern: string;
+        isregex?: boolean;
+        context?: number;
+        maxmatches?: number;
+    };
+
+    // wshrpc.CommandTermSearchScrollbackRtnData
+    type CommandTermSearchScrollbackRtnData = {
+        totalmatches: number;
+        matches: TermSearchMatch[];
     };
 
     // wshrpc.CommandVarData
@@ -1103,6 +1176,94 @@ declare global {
         blockid: string;
     };
 
+    // wshrpc.MemoryDeleteRequest
+    type MemoryDeleteRequest = {
+        workspaceid?: string;
+        id: string;
+    };
+
+    // wshrpc.MemoryDeleteResponse
+    type MemoryDeleteResponse = {
+        deleted: boolean;
+    };
+
+    // wshrpc.MemoryGetRequest
+    type MemoryGetRequest = {
+        workspaceid?: string;
+        id: string;
+        scope?: string;
+        key?: string;
+    };
+
+    // wshrpc.MemoryGetResponse
+    type MemoryGetResponse = {
+        record: MemoryRecord;
+    };
+
+    // wshrpc.MemoryListRequest
+    type MemoryListRequest = {
+        workspaceid?: string;
+        scope?: string;
+        tagglob?: string;
+        limit?: number;
+        cursor?: string;
+    };
+
+    // wshrpc.MemoryListResponse
+    type MemoryListResponse = {
+        records: MemoryRecord[];
+        nextcursor?: string;
+    };
+
+    // wshrpc.MemoryPutRequest
+    type MemoryPutRequest = {
+        workspaceid?: string;
+        scope?: string;
+        key?: string;
+        tags?: string[];
+        ttlsec?: number;
+        body: string;
+    };
+
+    // wshrpc.MemoryPutResponse
+    type MemoryPutResponse = {
+        id: string;
+    };
+
+    // aistore.MemoryRecord
+    type MemoryRecord = {
+        id: string;
+        workspaceid: string;
+        scope: string;
+        key: string;
+        tags?: string[];
+        body: string;
+        createdat: number;
+        updatedat: number;
+        ttlsec?: number;
+    };
+
+    // aistore.MemorySearchMatch
+    type MemorySearchMatch = {
+        id: string;
+        scope: string;
+        key: string;
+        snippet: string;
+    };
+
+    // wshrpc.MemorySearchRequest
+    type MemorySearchRequest = {
+        workspaceid?: string;
+        scope?: string;
+        query: string;
+        limit?: number;
+    };
+
+    // wshrpc.MemorySearchResponse
+    type MemorySearchResponse = {
+        matches: MemorySearchMatch[];
+    };
+
     // waveobj.MetaTSType
     type MetaType = {
         view?: string;
@@ -1355,6 +1516,7 @@ declare global {
         blockid?: string;
         conn?: string;
         isrouter?: boolean;
+        isagent?: boolean;
     };
 
     // wshutil.RpcMessage
@@ -1714,6 +1876,12 @@ declare global {
     // wshrpc.TermInfoRequest
     type TermInfoRequest = {
         block_id: string;
+    };
+
+    // wshrpc.TermSearchMatch
+    type TermSearchMatch = {
+        line: number;
+        snippet: string;
     };
 
     // waveobj.TermSize
@@ -2175,6 +2343,11 @@ declare global {
     type WebSelectorOpts = {
         all?: boolean;
         inner?: boolean;
+    };
+
+    // wshrpc.WidgetClearScrollbackData
+    type WidgetClearScrollbackData = {
+        blockid?: string;
     };
 
     // wconfig.WidgetConfigType

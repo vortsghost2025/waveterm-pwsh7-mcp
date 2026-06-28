@@ -16,6 +16,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/wavetermdev/waveterm/pkg/baseds"
@@ -218,11 +219,17 @@ func SetupDomainSocketRpcClient(sockName string, serverImpl ServerImpl, debugNam
 
 func MakeClientJWTToken(rpcCtx wshrpc.RpcContext) (string, error) {
 	if wavebase.IsDevMode() {
+		if rpcCtx.IsAgent && rpcCtx.IsRouter {
+			panic("Invalid RpcCtx, agent cannot be router")
+		}
+		if rpcCtx.IsAgent && rpcCtx.RouteId != "" {
+			panic("Invalid RpcCtx, agent should not have routeid")
+		}
+		if !rpcCtx.IsAgent && !rpcCtx.IsRouter && (rpcCtx.RouteId == "" && !rpcCtx.ProcRoute) {
+			panic("Invalid RpcCtx, no routeid")
+		}
 		if rpcCtx.IsRouter && (rpcCtx.RouteId != "" || rpcCtx.ProcRoute) {
 			panic("Invalid RpcCtx, router w/ routeid")
-		}
-		if !rpcCtx.IsRouter && (rpcCtx.RouteId == "" && !rpcCtx.ProcRoute) {
-			panic("Invalid RpcCtx, no routeid")
 		}
 	}
 	claims := &wavejwt.WaveJwtClaims{
@@ -232,6 +239,10 @@ func MakeClientJWTToken(rpcCtx wshrpc.RpcContext) (string, error) {
 		BlockId:   rpcCtx.BlockId,
 		Conn:      rpcCtx.Conn,
 		Router:    rpcCtx.IsRouter,
+		Agent:     rpcCtx.IsAgent,
+	}
+	if rpcCtx.IsAgent {
+		claims.ExpiresAt = jwt.NewNumericDate(time.Now().Add(1 * time.Hour))
 	}
 	return wavejwt.Sign(claims)
 }
@@ -244,6 +255,7 @@ func claimsToRpcCtx(claims *wavejwt.WaveJwtClaims) *wshrpc.RpcContext {
 		BlockId:   claims.BlockId,
 		Conn:      claims.Conn,
 		IsRouter:  claims.Router,
+		IsAgent:   claims.Agent,
 	}
 }
 

@@ -108,7 +108,11 @@ func (impl *WshRouterControlImpl) AuthenticateCommand(ctx context.Context, data 
 	}
 
 	rtnData := wshrpc.CommandAuthenticateRtnData{RouteId: routeId}
-	if newCtx.IsRouter {
+	if newCtx.IsAgent {
+		log.Printf("wshrouter authenticate success linkid=%d (agent)", linkId)
+		impl.Router.trustLink(linkId, LinkKind_Leaf)
+		impl.Router.tagLinkAsAgent(linkId)
+	} else if newCtx.IsRouter {
 		log.Printf("wshrouter authenticate success linkid=%d (router)", linkId)
 		impl.Router.trustLink(linkId, LinkKind_Router)
 	} else {
@@ -292,6 +296,15 @@ func (impl *WshRouterControlImpl) AuthenticateJobManagerCommand(ctx context.Cont
 func validateRpcContextFromAuth(newCtx *wshrpc.RpcContext) (string, error) {
 	if newCtx == nil {
 		return "", fmt.Errorf("no context found in jwt token")
+	}
+	if newCtx.IsAgent {
+		if newCtx.IsRouter {
+			return "", fmt.Errorf("invalid context, agent cannot be router")
+		}
+		if newCtx.RouteId != "" || newCtx.ProcRoute {
+			return "", fmt.Errorf("invalid context, agent cannot have routeid/procroute")
+		}
+		return "", nil
 	}
 	if newCtx.IsRouter && newCtx.RouteId != "" {
 		return "", fmt.Errorf("invalid context, router cannot have a routeid")

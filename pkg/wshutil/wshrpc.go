@@ -82,6 +82,15 @@ func GetWshRpcFromContext(ctx context.Context) *WshRpc {
 	return rtn.(*WshRpc)
 }
 
+func GetRpcContextFromCtx(ctx context.Context) *wshrpc.RpcContext {
+	rtn := ctx.Value(wshRpcRespHandlerContextKey{})
+	if rtn == nil {
+		return nil
+	}
+	rpcCtx := rtn.(*RpcResponseHandler).GetRpcContext()
+	return &rpcCtx
+}
+
 func GetRpcSourceFromContext(ctx context.Context) string {
 	rtn := ctx.Value(wshRpcRespHandlerContextKey{})
 	if rtn == nil {
