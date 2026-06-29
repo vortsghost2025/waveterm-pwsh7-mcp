@@ -455,10 +455,12 @@ func RunAIChat(ctx context.Context, sseHandler *sse.SSEHandlerCh, backend UseCha
 		}
 		if firstStep && err != nil {
 			metrics.HadError = true
+			log.Printf("WaveAI error (first step, api=%s model=%s): %v", chatOpts.Config.APIType, chatOpts.Config.Model, err)
 			return metrics, fmt.Errorf("failed to stream %s chat: %w", chatOpts.Config.APIType, err)
 		}
 		if err != nil {
 			metrics.HadError = true
+			log.Printf("WaveAI error (api=%s model=%s): %v", chatOpts.Config.APIType, chatOpts.Config.Model, err)
 			_ = sseHandler.AiMsgError(err.Error())
 			_ = sseHandler.AiMsgFinish("", nil)
 			break
