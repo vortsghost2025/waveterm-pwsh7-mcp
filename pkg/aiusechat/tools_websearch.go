@@ -26,6 +26,8 @@ var (
 	WebSearchExaBaseURL          = "https://api.exa.ai"
 	WebSearchExaSearchEndpoint   = "/search"
 	WebSearchEnvAPIKey           = "EXA_API_KEY"
+	WebSearchExaAPIKey           string // overrides env, overridden by test
+	WebSearchSkipSecretStore     bool   // test hook: skip secret store fallback
 )
 
 type WebSearchToolInput struct {
@@ -224,6 +226,9 @@ func executeWebSearch(params *WebSearchToolInput) (*WebSearchToolOutput, error) 
 
 	apiKey := os.Getenv(WebSearchEnvAPIKey)
 	if apiKey == "" {
+		apiKey = WebSearchExaAPIKey
+	}
+	if apiKey == "" && !WebSearchSkipSecretStore {
 		secret, exists, err := secretstore.GetSecret("EXA_KEY")
 		if err == nil && exists && secret != "" {
 			apiKey = secret

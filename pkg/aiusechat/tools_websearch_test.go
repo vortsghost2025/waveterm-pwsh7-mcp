@@ -186,8 +186,14 @@ func TestGetWebSearchToolDefinition(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected required to be []string")
 	}
-	if len(required) != 1 || required[0] != "query" {
-		t.Errorf("required got=%v want=[query]", required)
+	expectedRequired := []string{"query", "numResults", "livecrawl", "type", "contextMaxCharacters"}
+	if len(required) != len(expectedRequired) {
+		t.Errorf("required length got=%d want=%d", len(required), len(expectedRequired))
+	}
+	for i, key := range expectedRequired {
+		if i >= len(required) || required[i] != key {
+			t.Errorf("required[%d] got=%q want=%q", i, required[i], key)
+		}
 	}
 }
 
@@ -296,6 +302,14 @@ func TestExecuteWebSearch_Success(t *testing.T) {
 }
 
 func TestExecuteWebSearch_MissingAPIKey(t *testing.T) {
+	origKey := os.Getenv("EXA_API_KEY")
+	os.Unsetenv("EXA_API_KEY")
+	defer os.Setenv("EXA_API_KEY", origKey)
+
+	origSkip := WebSearchSkipSecretStore
+	WebSearchSkipSecretStore = true
+	defer func() { WebSearchSkipSecretStore = origSkip }()
+
 	params := &WebSearchToolInput{
 		Query:      "test query",
 		NumResults: intPtr(5),
