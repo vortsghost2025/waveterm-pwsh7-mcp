@@ -12,7 +12,6 @@ func TestResolvedSendKeySequenceSafeKeys(t *testing.T) {
 		wantIsSig bool
 		wantSig  string
 	}{
-		{"enter", "\r", false, ""},
 		{"escape", "\x1b", false, ""},
 		{"esc", "\x1b", false, ""},
 		{"backspace", "\x7f", false, ""},
@@ -82,6 +81,28 @@ func TestResolvedSendKeySequenceSignalKeys(t *testing.T) {
 		if !IsDangerousKey(tc.key) {
 			t.Errorf("key %q: expected dangerous, got safe", tc.key)
 		}
+	}
+}
+
+func TestResolvedSendKeySequenceDangerousNonSignal(t *testing.T) {
+	if !IsDangerousKey("enter") {
+		t.Errorf("enter: expected dangerous, got safe")
+	}
+	seq, isSig, sigName, err := ResolvedSendKeySequence("enter")
+	if err != nil {
+		t.Errorf("enter: unexpected error: %v", err)
+	}
+	if seq != "\r" {
+		t.Errorf("enter: seq got=%q want=%q", seq, "\r")
+	}
+	if isSig {
+		t.Errorf("enter: should not be a signal")
+	}
+	if sigName != "" {
+		t.Errorf("enter: sigName got=%q want=%q", sigName, "")
+	}
+	if !IsDangerousKey("ctrlbreak") {
+		t.Errorf("ctrlbreak: expected dangerous, got safe")
 	}
 }
 
