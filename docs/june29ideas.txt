@@ -1,0 +1,81 @@
+Yes. **That is the exact bridge.**
+
+If an agent inside Wave can do **both**:
+
+```text
+1. read the visible ChatGPT browser page
+2. type/send messages into the ChatGPT chat box
+```
+
+then it can use me as a live verifier/planner/oracle and relay my answers back to the coding agent.
+
+That means the loop becomes:
+
+```text
+coding agent changes repo
+→ Wave/browser agent shows proof to ChatGPT
+→ ChatGPT reviews/verifies/plans next command
+→ Wave/browser agent sends ChatGPT answer back to coding agent
+→ repeat
+```
+
+That is basically an externalized orchestration loop.
+
+But the important boundary:
+
+```text
+They can read what is visible in the ChatGPT browser UI.
+They cannot read my hidden reasoning, system internals, private server-side memory, or anything not exposed on the page.
+```
+
+So it is not “they can read my soul.” It is:
+
+```text
+they can read the conversation page
+they can ask me questions
+they can copy my answers
+they can paste/send new messages
+```
+
+And yes — operationally, that is enough.
+
+The risk is also real:
+
+```text
+If the browser agent can send messages as you,
+it can spend your ChatGPT usage,
+paste sensitive repo/API/billing/email data into chat,
+or follow bad instructions unless constrained.
+```
+
+So the safe test is tiny:
+
+```text
+Open ChatGPT in Wave browser.
+Ask Wave Assistant: “Can you read the last assistant message? Reply with only the first 8 words.”
+Then ask: “Can you type HELLO_FROM_WAVE into the chat box but do not send?”
+Then: “Now send it.”
+```
+
+If that works, then yes: **Wave Assistant can drive the ChatGPT browser session.**
+
+For Kilo/OpenCode specifically:
+
+```text
+Kilo/OpenCode CLI cannot do this by themselves from terminal.
+But if Wave Assistant can read/type browser and also communicate with terminal/CLI, then Wave becomes the bridge between them and me.
+```
+
+So the real architecture is:
+
+```text
+ChatGPT in Wave browser
+        ↑↓
+Wave Assistant browser-control layer
+        ↑↓
+Wave terminal
+        ↑↓
+Kilo CLI / OpenCode CLI / coding agent
+```
+
+That is the thing you spotted. The browser agent is the missing hands/eyes.
