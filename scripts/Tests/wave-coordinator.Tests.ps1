@@ -240,6 +240,12 @@ Describe "DirectoryMutex" {
 }
 
 Describe "HeartbeatWriter" {
+  BeforeEach {
+    Get-ChildItem $script:BaseTestDir -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+      Remove-Item $_.FullName -Recurse -Force -ErrorAction SilentlyContinue
+    }
+  }
+
   It "writes a heartbeat record to JSONL" {
     $hbPath = Join-Path $script:BaseTestDir ([Guid]::NewGuid().ToString("N").Substring(0, 8))
     New-Item -ItemType Directory -Path $hbPath -Force | Out-Null
@@ -256,12 +262,14 @@ Describe "HeartbeatWriter" {
     $record.last_inbox_offset | Should -Be 0
     $record.last_outbox_offset | Should -Be 0
     $record.escalation_pending | Should -Be $false
+    $record.timestamp | Should -Not -BeNullOrEmpty
+    ($record.timestamp -is [DateTime]) | Should -Be $true
   }
 
   It "appends heartbeat records on each call" {
     $hbPath = Join-Path $script:BaseTestDir ([Guid]::NewGuid().ToString("N").Substring(0, 8))
     New-Item -ItemType Directory -Path $hbPath -Force | Out-Null
-    $hbFile = Join-Path $hbPath "coordinator-heartbeat.jsonl2"
+    $hbFile = Join-Path $hbPath "coordinator-heartbeat-append.jsonl"
     if (Test-Path $hbFile) { Remove-Item $hbFile }
 
     $hbWriter = [HeartbeatWriter]::new($hbFile)
@@ -316,5 +324,33 @@ Describe "EscalationDetector" {
     $detector = [EscalationDetector]::new()
     $result = $detector.Scan("Bridge write complete. Awaiting reply.")
     $result.trigger | Should -BeNullOrEmpty
+  }
+
+  It "handles null input without crashing" {
+    $detector = [EscalationDetector]::new()
+    $result = $detector.Scan($null)
+    $result.trigger | Should -BeNullOrEmpty
+    $result.is_soft | Should -Be $false
+  }
+
+  It "handles empty string input without crashing" {
+    $detector = [EscalationDetector]::new()
+    $result = $detector.Scan("")
+    $result.trigger | Should -BeNullOrEmpty
+    $result.is_soft | Should -Be $false
+  }
+
+  It "matches trigger case-insensitively" {
+    $detector = [EscalationDetector]::new()
+    $result = $detector.Scan("decision: use minimax approach")
+    $result.trigger | Should -Be "DECISION"
+    $result.is_soft | Should -Be $false
+  }
+
+  It "returns a trigger when multiple are present (first-match-wins)" {
+    $detector = [EscalationDetector]::new()
+    $result = $detector.Scan("DECISION: proceed with build, then BLOCKED: waiting")
+    $result.trigger | Should -Not -BeNullOrEmpty
+    $result.is_soft | Should -Be $false
   }
 }

@@ -124,6 +124,9 @@ class HeartbeatWriter {
   [string]$HeartbeatPath
 
   HeartbeatWriter([string]$heartbeatPath) {
+    if ([string]::IsNullOrEmpty($heartbeatPath)) {
+      throw [System.ArgumentNullException]::new("heartbeatPath", "HeartbeatPath cannot be null or empty.")
+    }
     $this.HeartbeatPath = $heartbeatPath
   }
 
@@ -148,9 +151,12 @@ class EscalationDetector {
     "ASK" = "ASK:"
   }
 
-  EscalationDetector() {}
+  EscalationDetector() { }
 
   [hashtable] Scan([string]$message) {
+    if ([string]::IsNullOrEmpty($message)) {
+      return @{ trigger = $null; is_soft = $false }
+    }
     $upper = $message.ToUpper()
     foreach ($key in $this.Patterns.Keys) {
       if ($upper.Contains($this.Patterns[$key])) {
