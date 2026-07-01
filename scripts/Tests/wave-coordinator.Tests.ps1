@@ -18,7 +18,7 @@ Describe "CoordinatorState" {
     }
   }
 
-  It "creates default state file when none exists" {
+  It "returns default state object" {
     $dir = Join-Path $script:BaseTestDir ([Guid]::NewGuid().ToString("N").Substring(0, 8))
     New-Item -ItemType Directory -Path $dir -Force | Out-Null
     $statePath = Join-Path $dir "coordinator-state.json"

@@ -49,6 +49,10 @@ function Save-CoordinatorState {
     [string]$StatePath
   )
   $json = $State | ConvertTo-Json -Depth 3
+  $parent = Split-Path -Parent $StatePath
+  if (-not (Test-Path $parent)) {
+    New-Item -ItemType Directory -Path $parent -Force | Out-Null
+  }
   $tmpPath = "$StatePath.tmp"
   [System.IO.File]::WriteAllText($tmpPath, $json, $Utf8NoBom)
   Move-Item -Path $tmpPath -Destination $StatePath -Force
@@ -109,6 +113,7 @@ class DirectoryMutex {
   }
 
   [void] Release() {
+    if ([string]::IsNullOrWhiteSpace($this.LockPath)) { return }
     if (Test-Path $this.LockPath) {
       Remove-Item $this.LockPath -Force
     }
