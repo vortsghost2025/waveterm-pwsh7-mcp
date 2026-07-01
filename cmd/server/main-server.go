@@ -567,7 +567,9 @@ func main() {
 	startConfigWatcher()
 	aiusechat.InitAIModeConfigWatcher()
 	maybeStartPprofServer()
-	go stdinReadWatch()
+	if os.Getenv("WAVETERM_NOSTDINWATCH") != "1" {
+		go stdinReadWatch()
+	}
 	go telemetryLoop()
 	go diagnosticLoop()
 	setupTelemetryConfigHandler()
