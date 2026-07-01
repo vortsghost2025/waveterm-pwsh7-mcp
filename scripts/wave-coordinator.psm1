@@ -5,15 +5,21 @@ function Get-DefaultCoordinatorState {
     last_reply_offset_inbox = 0
     last_reply_offset_outbox = 0
     escalation_pending = $false
-    started_at = (Get-Date -Format "o")
   }
 }
 
 function Load-CoordinatorState {
-  param([string]$StatePath)
-  if (-not (Test-Path $StatePath)) { return Get-DefaultCoordinatorState }
+  param(
+    [ValidateNotNullOrEmpty()]
+    [string]$StatePath
+  )
+  if (-not (Test-Path $StatePath)) {
+    $state = Get-DefaultCoordinatorState
+    $state.started_at = (Get-Date -Format "o")
+    return $state
+  }
   try {
-    $raw = Get-Content -Path $StatePath -Raw -Encoding UTF8
+    $raw = Get-Content -Path $StatePath -Raw -Encoding UTF8NoBOM
     $parsed = $raw | ConvertFrom-Json
     return [ordered]@{
       active_turn = $parsed.active_turn
@@ -24,13 +30,23 @@ function Load-CoordinatorState {
       started_at = $parsed.started_at
     }
   } catch {
-    return Get-DefaultCoordinatorState
+    $defaults = Get-DefaultCoordinatorState
+    try {
+      Save-CoordinatorState -State $defaults -StatePath $StatePath
+    } catch {
+      # Swallow repair errors; return defaults anyway
+    }
+    return $defaults
   }
 }
 
 function Save-CoordinatorState {
-  param($State, [string]$StatePath)
-  $State | ConvertTo-Json -Depth 5 | Set-Content -Path $StatePath -Encoding UTF8
+  param(
+    [ValidateNotNullOrEmpty()]
+    [hashtable]$State,
+    [string]$StatePath
+  )
+  $State | ConvertTo-Json -Depth 3 | Set-Content -Path $StatePath -Encoding UTF8NoBOM
 }
 
 class ByteOffsetTracker {
@@ -39,7 +55,6 @@ class ByteOffsetTracker {
 
   ByteOffsetTracker([string]$filePath) {
     $this.FilePath = $filePath
-    $this.LastOffset = 0
     if (Test-Path $filePath) {
       $item = Get-Item $filePath
       $this.LastOffset = $item.Length
@@ -49,9 +64,16 @@ class ByteOffsetTracker {
   [long] GetOffset() { return $this.LastOffset }
 
   [bool] Poll() {
-    if (-not (Test-Path $this.FilePath)) { return $false }
-    $item = Get-Item $this.FilePath
+    try {
+      $item = Get-Item $this.FilePath -ErrorAction Stop
+    } catch {
+      return $false
+    }
     $current = $item.Length
+    if ($current -lt $this.LastOffset) {
+      $this.LastOffset = $current
+      return $true
+    }
     if ($current -gt $this.LastOffset) {
       $this.LastOffset = $current
       return $true
@@ -69,13 +91,17 @@ class DirectoryMutex {
 
   [bool] TryAcquire() {
     if (Test-Path $this.LockPath) { return $false }
-    New-Item -ItemType Directory -Path $this.LockPath -Force | Out-Null
-    return $true
+    try {
+      New-Item -ItemType Directory -Path $this.LockPath -ErrorAction Stop | Out-Null
+      return $true
+    } catch {
+      return $false
+    }
   }
 
   [void] Release() {
     if (Test-Path $this.LockPath) {
-      Remove-Item $this.LockPath -Recurse -Force
+      Remove-Item $this.LockPath -Force
     }
   }
 }
