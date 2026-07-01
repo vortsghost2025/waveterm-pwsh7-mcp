@@ -238,3 +238,83 @@ Describe "DirectoryMutex" {
     $mutex.TryAcquire() | Should -Be $false
   }
 }
+
+Describe "HeartbeatWriter" {
+  It "writes a heartbeat record to JSONL" {
+    $hbPath = Join-Path $script:BaseTestDir ([Guid]::NewGuid().ToString("N").Substring(0, 8))
+    New-Item -ItemType Directory -Path $hbPath -Force | Out-Null
+    $hbFile = Join-Path $hbPath "coordinator-heartbeat.jsonl"
+    if (Test-Path $hbFile) { Remove-Item $hbFile }
+
+    $hbWriter = [HeartbeatWriter]::new($hbFile)
+    $hbWriter.Write("opencode", 0, 0, $false)
+
+    $lines = [System.IO.File]::ReadAllLines($hbFile, $script:Utf8NoBomEncoding)
+    $lines.Count | Should -Be 1
+    $record = $lines[0] | ConvertFrom-Json
+    $record.active_turn | Should -Be "opencode"
+    $record.last_inbox_offset | Should -Be 0
+    $record.last_outbox_offset | Should -Be 0
+    $record.escalation_pending | Should -Be $false
+  }
+
+  It "appends heartbeat records on each call" {
+    $hbPath = Join-Path $script:BaseTestDir ([Guid]::NewGuid().ToString("N").Substring(0, 8))
+    New-Item -ItemType Directory -Path $hbPath -Force | Out-Null
+    $hbFile = Join-Path $hbPath "coordinator-heartbeat.jsonl2"
+    if (Test-Path $hbFile) { Remove-Item $hbFile }
+
+    $hbWriter = [HeartbeatWriter]::new($hbFile)
+    $hbWriter.Write("idle", 100, 200, $false)
+    $hbWriter.Write("wave-ai", 300, 400, $true)
+
+    $lines = [System.IO.File]::ReadAllLines($hbFile, $script:Utf8NoBomEncoding)
+    $lines.Count | Should -Be 2
+    ($lines[0] | ConvertFrom-Json).active_turn | Should -Be "idle"
+    ($lines[1] | ConvertFrom-Json).active_turn | Should -Be "wave-ai"
+    ($lines[1] | ConvertFrom-Json).escalation_pending | Should -Be $true
+  }
+}
+
+Describe "EscalationDetector" {
+  It "matches DECISION trigger" {
+    $detector = [EscalationDetector]::new()
+    $result = $detector.Scan("DECISION: should we use minimax or openai?")
+    $result.trigger | Should -Be "DECISION"
+    $result.is_soft | Should -Be $false
+  }
+
+  It "matches BLOCKED trigger" {
+    $detector = [EscalationDetector]::new()
+    $result = $detector.Scan("BLOCKED: wave ai not responding")
+    $result.trigger | Should -Be "BLOCKED"
+    $result.is_soft | Should -Be $false
+  }
+
+  It "matches SHIPMENT trigger" {
+    $detector = [EscalationDetector]::new()
+    $result = $detector.Scan("SHIPMENT: binary rebuilt and pushed to origin")
+    $result.trigger | Should -Be "SHIPMENT"
+    $result.is_soft | Should -Be $false
+  }
+
+  It "matches ASK soft trigger" {
+    $detector = [EscalationDetector]::new()
+    $result = $detector.Scan("ASK: which model should we use?")
+    $result.trigger | Should -Be "ASK"
+    $result.is_soft | Should -Be $true
+  }
+
+  It "matches trailing question mark as soft trigger" {
+    $detector = [EscalationDetector]::new()
+    $result = $detector.Scan("Should we proceed with approach B?")
+    $result.trigger | Should -Be "QUESTION"
+    $result.is_soft | Should -Be $true
+  }
+
+  It "returns no trigger for routine messages" {
+    $detector = [EscalationDetector]::new()
+    $result = $detector.Scan("Bridge write complete. Awaiting reply.")
+    $result.trigger | Should -BeNullOrEmpty
+  }
+}

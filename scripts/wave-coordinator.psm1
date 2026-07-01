@@ -119,3 +119,51 @@ class DirectoryMutex {
     }
   }
 }
+
+class HeartbeatWriter {
+  [string]$HeartbeatPath
+  [DateTime]$LastWrite = (Get-Date)
+
+  HeartbeatWriter([string]$heartbeatPath) {
+    $this.HeartbeatPath = $heartbeatPath
+  }
+
+  [void] Write([string]$activeTurn, [long]$inboxOffset, [long]$outboxOffset, [bool]$escalationPending) {
+    $record = [ordered]@{
+      timestamp = (Get-Date -Format "o")
+      active_turn = $activeTurn
+      last_inbox_offset = $inboxOffset
+      last_outbox_offset = $outboxOffset
+      escalation_pending = $escalationPending
+    }
+    $json = ($record | ConvertTo-Json -Compress)
+    [System.IO.File]::AppendAllText($this.HeartbeatPath, $json + "`n", (New-Object System.Text.UTF8Encoding($false)))
+    $this.LastWrite = Get-Date
+  }
+
+  [DateTime] GetLastWriteTime() { return $this.LastWrite }
+}
+
+class EscalationDetector {
+  [hashtable]$Patterns = @{
+    "DECISION" = "DECISION:"
+    "BLOCKED" = "BLOCKED:"
+    "SHIPMENT" = "SHIPMENT:"
+    "ASK" = "ASK:"
+  }
+
+  EscalationDetector() {}
+
+  [hashtable] Scan([string]$message) {
+    $upper = $message.ToUpper()
+    foreach ($key in $this.Patterns.Keys) {
+      if ($upper.Contains($this.Patterns[$key])) {
+        return @{ trigger = $key; is_soft = ($key -eq "ASK") }
+      }
+    }
+    if ($message.Trim().EndsWith("?")) {
+      return @{ trigger = "QUESTION"; is_soft = $true }
+    }
+    return @{ trigger = $null; is_soft = $false }
+  }
+}
