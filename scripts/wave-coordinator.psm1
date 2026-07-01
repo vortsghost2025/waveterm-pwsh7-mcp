@@ -122,7 +122,6 @@ class DirectoryMutex {
 
 class HeartbeatWriter {
   [string]$HeartbeatPath
-  [DateTime]$LastWrite = (Get-Date)
 
   HeartbeatWriter([string]$heartbeatPath) {
     $this.HeartbeatPath = $heartbeatPath
@@ -138,10 +137,7 @@ class HeartbeatWriter {
     }
     $json = ($record | ConvertTo-Json -Compress)
     [System.IO.File]::AppendAllText($this.HeartbeatPath, $json + "`n", (New-Object System.Text.UTF8Encoding($false)))
-    $this.LastWrite = Get-Date
   }
-
-  [DateTime] GetLastWriteTime() { return $this.LastWrite }
 }
 
 class EscalationDetector {
