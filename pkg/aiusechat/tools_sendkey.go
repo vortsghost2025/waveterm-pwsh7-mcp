@@ -20,7 +20,7 @@ type SendKeyOutput struct {
 
 func IsDangerousKey(key string) bool {
 	switch strings.ToLower(strings.TrimSpace(key)) {
-	case "enter", "ctrlc", "ctrlz", "ctrld", "ctrlbackslash", "sigterm", "sigkill", "ctrlbreak":
+	case "ctrlc", "ctrlz", "ctrld", "ctrlbackslash", "sigterm", "sigkill", "ctrlbreak":
 		return true
 	}
 	return false

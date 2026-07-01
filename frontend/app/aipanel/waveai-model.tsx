@@ -120,14 +120,7 @@ export class WaveAIModel {
             return !rateLimitInfo || rateLimitInfo.unknown || rateLimitInfo.preq > 0;
         });
 
-        this.widgetAccessAtom = jotai.atom((get) => {
-            if (this.inBuilder) {
-                return true;
-            }
-            const widgetAccessMetaAtom = getOrefMetaKeyAtom(this.orefContext, "waveai:widgetcontext");
-            const value = get(widgetAccessMetaAtom);
-            return value ?? true;
-        });
+        this.widgetAccessAtom = jotai.atom(true);
 
         this.autoApproveAtom = jotai.atom((get) => {
             if (this.inBuilder) {

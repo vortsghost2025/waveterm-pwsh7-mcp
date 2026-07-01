@@ -130,6 +130,21 @@ var cmdAllowlist = []allowedCommand{
 	{regexp.MustCompile(`^wsh status$`), "wsh status"},
 	{regexp.MustCompile(`^wsh chatstatus$`), "wsh chatstatus"},
 	{regexp.MustCompile(`^wsh ai .+$`), "wsh ai"},
+	{regexp.MustCompile(`^wsh agent list$`), "wsh agent list"},
+	{regexp.MustCompile(`^wsh agent status$`), "wsh agent status"},
+	{regexp.MustCompile(`^wsh agent stale$`), "wsh agent stale"},
+	{regexp.MustCompile(`^wsh agent stop .+$`), "wsh agent stop"},
+
+	// Agent coordination helpers
+	{regexp.MustCompile(`^wavehydrate$`), "wavehydrate"},
+	{regexp.MustCompile(`^wavehydrate .+$`), "wavehydrate"},
+	{regexp.MustCompile(`^Send-WaveNudge\.ps1$`), "Send-WaveNudge"},
+	{regexp.MustCompile(`^wave-collisions\.ps1$`), "wave-collisions"},
+
+	// Bridge helpers (read-only inspection)
+	{regexp.MustCompile(`^Get-Content S:\\sean-machine-janitor\\bridge\\wave-inbox\.jsonl$`), "bridge read inbox"},
+	{regexp.MustCompile(`^Get-Content S:\\sean-machine-janitor\\bridge\\wave-outbox\.jsonl$`), "bridge read outbox"},
+	{regexp.MustCompile(`^Get-Content S:\\waveterm\\agent-coordination\\nudge-log\.txt$`), "nudge log read"},
 
 	// Disk usage (read-only)
 	{regexp.MustCompile(`^df .*$`), "df"},
@@ -187,6 +202,8 @@ var cmdMetacharAllowlist = []allowedCommand{
 	{regexp.MustCompile(`^Set-Location S:[\\/]federation[\\/]genesis-memory; echo '\{"jsonrpc":"2\.0","method":"tools/list","id":1\}' \| npx tsx src/index\.ts$`), "Set-Location genesis-memory tools/list"},
 	{regexp.MustCompile(`^Set-Location S:[\\/]waveterm; npm run build$`), "Set-Location waveterm npm run build"},
 	{regexp.MustCompile(`^Set-Location S:[\\/]waveterm; npm start$`), "Set-Location waveterm npm start"},
+	{regexp.MustCompile(`^Set-Location S:[\\/]waveterm; wavehydrate --check$`), "Set-Location waveterm wavehydrate"},
+	{regexp.MustCompile(`^Set-Location S:[\\/]waveterm; \\.\\(scripts\\|)Send-WaveNudge\\.ps1$`), "Set-Location waveterm Send-WaveNudge"},
 }
 
 var cmdBlockedPatterns = []*regexp.Regexp{

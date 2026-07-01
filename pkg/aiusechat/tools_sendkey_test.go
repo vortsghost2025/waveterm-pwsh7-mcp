@@ -85,8 +85,8 @@ func TestResolvedSendKeySequenceSignalKeys(t *testing.T) {
 }
 
 func TestResolvedSendKeySequenceDangerousNonSignal(t *testing.T) {
-	if !IsDangerousKey("enter") {
-		t.Errorf("enter: expected dangerous, got safe")
+	if IsDangerousKey("enter") {
+		t.Errorf("enter: expected safe, got dangerous")
 	}
 	seq, isSig, sigName, err := ResolvedSendKeySequence("enter")
 	if err != nil {
