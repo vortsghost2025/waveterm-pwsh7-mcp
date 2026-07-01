@@ -4,6 +4,7 @@ BeforeAll {
   $script:BaseTestDir = Join-Path $PSScriptRoot "..\agent-coordination-test"
   if (Test-Path $script:BaseTestDir) { Remove-Item $script:BaseTestDir -Recurse -Force }
   New-Item -ItemType Directory -Path $script:BaseTestDir -Force | Out-Null
+  $script:Utf8NoBomEncoding = New-Object System.Text.UTF8Encoding($false)
 }
 
 AfterAll {
@@ -42,7 +43,8 @@ Describe "CoordinatorState" {
       escalation_pending = $true
       started_at = (Get-Date -Format "o")
     }
-    $testState | ConvertTo-Json | Set-Content -Path $statePath -Encoding UTF8NoBOM
+    $json = $testState | ConvertTo-Json
+    [System.IO.File]::WriteAllText($statePath, $json, $script:Utf8NoBomEncoding)
 
     $loaded = Load-CoordinatorState -StatePath $statePath
 
@@ -57,7 +59,7 @@ Describe "CoordinatorState" {
     $dir = Join-Path $script:BaseTestDir ([Guid]::NewGuid().ToString("N").Substring(0, 8))
     New-Item -ItemType Directory -Path $dir -Force | Out-Null
     $statePath = Join-Path $dir "coordinator-state.json"
-    Set-Content -Path $statePath -Value "not json{{{" -Encoding UTF8NoBOM
+    [System.IO.File]::WriteAllText($statePath, "not json{{{", $script:Utf8NoBomEncoding)
 
     $state = Load-CoordinatorState -StatePath $statePath
 
@@ -81,7 +83,7 @@ Describe "CoordinatorState" {
     Save-CoordinatorState -State $testState -StatePath $statePath
 
     Test-Path $statePath | Should -Be $true
-    $content = Get-Content -Path $statePath -Raw -Encoding UTF8NoBOM
+    $content = [System.IO.File]::ReadAllText($statePath, $script:Utf8NoBomEncoding)
     $parsed = $content | ConvertFrom-Json
     $parsed.active_turn | Should -Be "wave-ai"
     $parsed.last_reply_offset_inbox | Should -Be 512

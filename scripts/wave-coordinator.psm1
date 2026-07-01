@@ -19,7 +19,7 @@ function Load-CoordinatorState {
     return $state
   }
   try {
-    $raw = Get-Content -Path $StatePath -Raw -Encoding UTF8NoBOM
+    $raw = [System.IO.File]::ReadAllText($StatePath, $Utf8NoBom)
     $parsed = $raw | ConvertFrom-Json
     return [ordered]@{
       active_turn = $parsed.active_turn
@@ -34,19 +34,24 @@ function Load-CoordinatorState {
     try {
       Save-CoordinatorState -State $defaults -StatePath $StatePath
     } catch {
-      # Swallow repair errors; return defaults anyway
+      Write-Warning "Failed to repair coordinator state file '$StatePath': $_"
     }
     return $defaults
   }
 }
 
+$Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+
 function Save-CoordinatorState {
   param(
     [ValidateNotNullOrEmpty()]
-    [hashtable]$State,
+    [System.Collections.IDictionary]$State,
     [string]$StatePath
   )
-  $State | ConvertTo-Json -Depth 3 | Set-Content -Path $StatePath -Encoding UTF8NoBOM
+  $json = $State | ConvertTo-Json -Depth 3
+  $tmpPath = "$StatePath.tmp"
+  [System.IO.File]::WriteAllText($tmpPath, $json, $Utf8NoBom)
+  Move-Item -Path $tmpPath -Destination $StatePath -Force
 }
 
 class ByteOffsetTracker {
@@ -56,8 +61,12 @@ class ByteOffsetTracker {
   ByteOffsetTracker([string]$filePath) {
     $this.FilePath = $filePath
     if (Test-Path $filePath) {
-      $item = Get-Item $filePath
-      $this.LastOffset = $item.Length
+      try {
+        $item = Get-Item $filePath
+        $this.LastOffset = $item.Length
+      } catch {
+        $this.LastOffset = 0
+      }
     }
   }
 
@@ -72,7 +81,7 @@ class ByteOffsetTracker {
     $current = $item.Length
     if ($current -lt $this.LastOffset) {
       $this.LastOffset = $current
-      return $true
+      return $true  # File truncated — caller should re-read from new offset
     }
     if ($current -gt $this.LastOffset) {
       $this.LastOffset = $current
