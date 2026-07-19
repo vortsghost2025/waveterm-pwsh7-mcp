@@ -1143,6 +1143,10 @@ func createTerminalBlock(tabId string) (string, error) {
 	return oref.OID, nil
 }
 
+func isTerminalReadyForCommand(_ bool, shellState string) bool {
+	return shellState == "ready"
+}
+
 func executeTermRunCommand(tabId string, parsed *TermRunCommandToolInput) (*TermRunCommandToolOutput, error) {
 	resolveCtx, cancelFn := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelFn()
@@ -1156,7 +1160,7 @@ func executeTermRunCommand(tabId string, parsed *TermRunCommandToolInput) (*Term
 	rtInfo := wstore.GetRTInfo(blockORef)
 	targetBlockId := fullBlockId
 
-	if rtInfo == nil || !rtInfo.ShellIntegration || rtInfo.ShellState == "running-command" {
+	if rtInfo == nil || !isTerminalReadyForCommand(rtInfo.ShellIntegration, rtInfo.ShellState) {
 		idleBlockId := findIdleTerminalBlock(tabId, fullBlockId)
 		if idleBlockId != "" {
 			targetBlockId = idleBlockId
@@ -1170,14 +1174,12 @@ func executeTermRunCommand(tabId string, parsed *TermRunCommandToolInput) (*Term
 				}, nil
 			}
 			targetBlockId = newBlockId
-			createdPrefix := newBlockId[:8]
-			_ = createdPrefix
-			waitReadyCtx, waitReadyCancel := context.WithTimeout(context.Background(), 10*time.Second)
+			waitReadyCtx, waitReadyCancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer waitReadyCancel()
 			for {
 				newORef := waveobj.MakeORef(waveobj.OType_Block, newBlockId)
 				newRtInfo := wstore.GetRTInfo(newORef)
-				if newRtInfo != nil && newRtInfo.ShellIntegration && newRtInfo.ShellState == "ready" {
+				if newRtInfo != nil && isTerminalReadyForCommand(newRtInfo.ShellIntegration, newRtInfo.ShellState) {
 					break
 				}
 				select {
@@ -1185,26 +1187,44 @@ func executeTermRunCommand(tabId string, parsed *TermRunCommandToolInput) (*Term
 					return &TermRunCommandToolOutput{
 						Success: false,
 						Status:  "shell-busy-new-terminal-not-ready",
-						Output:  fmt.Sprintf("Widget %s is busy. Created a new terminal (%s) but it did not become ready in time.", parsed.WidgetId, newBlockId[:8]),
+						Output:  fmt.Sprintf("Widget %s is busy. Created terminal %s, but that same terminal did not report ready within 30 seconds. Retry against widget %s instead of creating another terminal.", parsed.WidgetId, newBlockId[:8], newBlockId[:8]),
 					}, nil
-				case <-time.After(200 * time.Millisecond):
+				case <-time.After(250 * time.Millisecond):
 				}
 			}
 		}
 	}
 
-	textToSend := parsed.Command + "\r"
-	err = wshclient.ControllerInputCommand(
-		wshclient.GetBareRpcClient(),
-		wshrpc.CommandBlockInputData{
-			BlockId:     targetBlockId,
-			InputData64: base64.StdEncoding.EncodeToString([]byte(textToSend)),
-		},
-		nil,
-	)
+	payloads, err := buildTermSendInputPayloads(parsed.Command, true)
 	if err != nil {
-		return nil, fmt.Errorf("failed to send input to terminal: %w", err)
+		return nil, err
 	}
+
+	for idx, payload := range payloads {
+		if idx > 0 {
+			time.Sleep(75 * time.Millisecond)
+		}
+
+		err = wshclient.ControllerInputCommand(
+			wshclient.GetBareRpcClient(),
+			wshrpc.CommandBlockInputData{
+				BlockId:     targetBlockId,
+				InputData64: base64.StdEncoding.EncodeToString(payload),
+			},
+			nil,
+		)
+		if err != nil {
+			if idx == 0 {
+				return nil, fmt.Errorf("failed to send command text to terminal: %w", err)
+			}
+			return nil, fmt.Errorf("failed to send command Enter to terminal: %w", err)
+		}
+	}
+
+	// Let shell integration observe the transition away from ready before the
+	// completion waiter begins, otherwise an instant pre-command ready sample
+	// can be mistaken for command completion.
+	time.Sleep(150 * time.Millisecond)
 
 	waitCtx, cancelWait := context.WithTimeout(context.Background(), time.Duration(parsed.WaitTimeoutMs)*time.Millisecond)
 	defer cancelWait()
@@ -1228,10 +1248,10 @@ func GetTermRunCommandToolDefinition(tabId string) uctypes.ToolDefinition {
 		Name:        "term_run_command",
 		DisplayName: "Run Command in Terminal",
 		Description: "Run a command in a terminal widget and wait for it to finish. " +
-			"Sends the command followed by Enter via the terminal controller, then polls the shell " +
-			"integration ShellState until the shell returns to the \"ready\" state (prompt visible). " +
-			"If the target terminal is busy (e.g. running a TUI app like opencode), automatically finds an idle terminal in the same tab, " +
-			"or creates a new terminal block if none is idle. The 'output' field contains the 8-char widget_id used. " +
+			"Sends command text and Enter as separate terminal-controller inputs, then polls ShellState " +
+			"until the shell returns to the \"ready\" state (prompt visible). " +
+			"If the target terminal is busy, automatically finds an idle terminal in the same tab or creates exactly one terminal " +
+			"and waits up to 30 seconds for that same widget. The 'output' field contains the 8-char widget_id used. " +
 			"Use this for non-interactive commands on idle shells. For interacting with running TUI apps, use term_send_input instead. " +
 			"All tool calls are pre-approved.",
 		ToolLogName: "term:runcommand",

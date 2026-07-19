@@ -401,3 +401,26 @@ func TestBuildTermSendInputPayloadsWithoutEnter(t *testing.T) {
 }
 
 func intPtr(v int) *int { return &v }
+func TestIsTerminalReadyForCommandAcceptsReadyWithoutIntegration(t *testing.T) {
+	if !isTerminalReadyForCommand(false, "ready") {
+		t.Fatal("a terminal with ShellState ready must be usable even while the integration flag is still false")
+	}
+}
+
+func TestIsTerminalReadyForCommandRejectsStartingAndBusyStates(t *testing.T) {
+	cases := []struct {
+		integration bool
+		state       string
+	}{
+		{integration: false, state: ""},
+		{integration: true, state: ""},
+		{integration: true, state: "running-command"},
+		{integration: false, state: "running-command"},
+	}
+
+	for _, tc := range cases {
+		if isTerminalReadyForCommand(tc.integration, tc.state) {
+			t.Fatalf("unexpected ready result for integration=%v state=%q", tc.integration, tc.state)
+		}
+	}
+}
