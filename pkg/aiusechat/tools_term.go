@@ -234,6 +234,23 @@ type TermSendInputToolOutput struct {
 	Success bool `json:"success"`
 }
 
+func buildTermSendInputPayloads(text string, enter bool) ([][]byte, error) {
+	payloads := [][]byte{[]byte(text)}
+	if !enter {
+		return payloads, nil
+	}
+
+	enterSequence, isSignal, _, err := ResolvedSendKeySequence("enter")
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve Enter key: %w", err)
+	}
+	if isSignal || enterSequence == "" {
+		return nil, fmt.Errorf("Enter key resolved to an invalid terminal sequence")
+	}
+
+	return append(payloads, []byte(enterSequence)), nil
+}
+
 func parseTermSendInputInput(input any) (*TermSendInputToolInput, error) {
 	result := &TermSendInputToolInput{}
 
@@ -322,21 +339,33 @@ func GetTermSendInputToolDefinition(tabId string) uctypes.ToolDefinition {
 				return nil, fmt.Errorf("failed to resolve widget %s: %w", parsed.WidgetId, err)
 			}
 
-			textToSend := parsed.Text
-			if parsed.Enter {
-				textToSend += "\r"
+			payloads, err := buildTermSendInputPayloads(parsed.Text, parsed.Enter)
+			if err != nil {
+				return nil, err
 			}
 
-			err = wshclient.ControllerInputCommand(
-				wshclient.GetBareRpcClient(),
-				wshrpc.CommandBlockInputData{
-					BlockId:     fullBlockId,
-					InputData64: base64.StdEncoding.EncodeToString([]byte(textToSend)),
-				},
-				nil,
-			)
-			if err != nil {
-				return nil, fmt.Errorf("failed to send input to terminal: %w", err)
+			for idx, payload := range payloads {
+				if idx > 0 {
+					// Some terminals accept typed text but drop an Enter byte when
+					// both arrive in the same controller-input RPC. Give the PTY a
+					// brief chance to consume the text, then submit Enter separately.
+					time.Sleep(75 * time.Millisecond)
+				}
+
+				err = wshclient.ControllerInputCommand(
+					wshclient.GetBareRpcClient(),
+					wshrpc.CommandBlockInputData{
+						BlockId:     fullBlockId,
+						InputData64: base64.StdEncoding.EncodeToString(payload),
+					},
+					nil,
+				)
+				if err != nil {
+					if idx == 0 {
+						return nil, fmt.Errorf("failed to send text to terminal: %w", err)
+					}
+					return nil, fmt.Errorf("failed to send Enter to terminal: %w", err)
+				}
 			}
 
 			return &TermSendInputToolOutput{Success: true}, nil

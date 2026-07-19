@@ -361,5 +361,43 @@ func TestGetTermSendInputToolDefinition(t *testing.T) {
 		t.Errorf("InputSchema.required: got %v, want [widget_id text]", req)
 	}
 }
+func TestBuildTermSendInputPayloadsSeparatesEnter(t *testing.T) {
+	const text = `Write-Output "ENTER_TEST"`
+
+	payloads, err := buildTermSendInputPayloads(text, true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(payloads) != 2 {
+		t.Fatalf("payload count: got %d, want 2", len(payloads))
+	}
+	if got := string(payloads[0]); got != text {
+		t.Fatalf("text payload: got %q, want %q", got, text)
+	}
+
+	enterSequence, isSignal, _, err := ResolvedSendKeySequence("enter")
+	if err != nil {
+		t.Fatalf("resolving Enter: %v", err)
+	}
+	if isSignal {
+		t.Fatal("Enter unexpectedly resolved as a signal")
+	}
+	if got := string(payloads[1]); got != enterSequence {
+		t.Fatalf("Enter payload: got %q, want %q", got, enterSequence)
+	}
+}
+
+func TestBuildTermSendInputPayloadsWithoutEnter(t *testing.T) {
+	payloads, err := buildTermSendInputPayloads("hello", false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(payloads) != 1 {
+		t.Fatalf("payload count: got %d, want 1", len(payloads))
+	}
+	if got := string(payloads[0]); got != "hello" {
+		t.Fatalf("text payload: got %q, want hello", got)
+	}
+}
 
 func intPtr(v int) *int { return &v }
