@@ -271,7 +271,10 @@ export function initIpcHandlers() {
         if (!tabView) {
             throw new Error("No tab view found for the given webContents id");
         }
-        const image = await tabView.webContents.capturePage(rect);
+        const image = await tabView.webContents.capturePage(rect).catch(async (rectError) => {
+            console.warn("capture-screenshot: rectangular capture failed; retrying full tab", rectError);
+            return tabView.webContents.capturePage();
+        });
         const base64String = image.toPNG().toString("base64");
         return `data:image/png;base64,${base64String}`;
     });

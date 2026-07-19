@@ -266,8 +266,8 @@ func GetTermSendInputToolDefinition(tabId string) uctypes.ToolDefinition {
 		DisplayName: "Send Input to Terminal",
 		Description: "Send text input to a terminal widget as if the user typed it. " +
 			`Set "enter": true to press Enter after the text. ` +
-			"Works on any terminal regardless of its state (idle, busy, or running a TUI app). " +
-			"Use this to interact with running programs, send commands to a shell, or type into TUI applications. " +
+			"For a newly spawned Kilo agent, pass the initial task in term_spawn_agent.prompt instead of sending input during startup. " +
+			"Use this only for follow-ups after capture_screenshot confirms the Kilo input is ready. " +
 			"For simple shell commands on idle terminals, prefer term_run_command instead. " +
 			"All tool calls are pre-approved.",
 		ToolLogName: "term:sendinput",
@@ -629,6 +629,7 @@ type TermSpawnAgentToolInput struct {
 	Mode        string `json:"mode"`
 	WorkingDir  string `json:"working_dir"`
 	ProjectFile string `json:"project_file"`
+	Prompt      string `json:"prompt"`
 }
 
 type TermSpawnAgentToolOutput struct {
@@ -667,7 +668,7 @@ func GetTermSpawnAgentToolDefinition(tabId string) uctypes.ToolDefinition {
 	return uctypes.ToolDefinition{
 		Name:        "term_spawn_agent",
 		DisplayName: "Spawn Agent Terminal",
-		Description: "Spawn a new AI coding agent in a terminal widget. Creates a terminal block that auto-starts the agent CLI with the specified model. Returns a widget_id you can use with term_send_input, term_get_scrollback, and term_get_agent_status.",
+		Description: "Spawn a new AI coding agent in a terminal widget. For Kilo, provide prompt so the initial task is passed with --prompt at process launch instead of racing TUI startup. Returns a widget_id for screenshot monitoring and later term_send_input follow-ups.",
 		ToolLogName: "term:spawnagent",
 		InputSchema: map[string]any{
 			"type": "object",
@@ -692,6 +693,10 @@ func GetTermSpawnAgentToolDefinition(tabId string) uctypes.ToolDefinition {
 					"type":        "string",
 					"description": "Optional path to AGENTS.md or project context file",
 				},
+				"prompt": map[string]any{
+					"type":        "string",
+					"description": "Initial task. For Kilo this is passed atomically with --prompt so input cannot be lost during TUI startup.",
+				},
 			},
 			"required":             []string{"model", "working_dir"},
 			"additionalProperties": false,
@@ -715,7 +720,12 @@ func GetTermSpawnAgentToolDefinition(tabId string) uctypes.ToolDefinition {
 
 			modelFlag := "--model"
 			cmdArgs := []string{modelFlag, parsed.Model}
-			if parsed.ProjectFile != "" {
+			isKilo := strings.EqualFold(parsed.CLI, "kilo")
+
+			if isKilo && parsed.Prompt != "" {
+				cmdArgs = append(cmdArgs, "--prompt", parsed.Prompt)
+			}
+			if !isKilo && parsed.ProjectFile != "" {
 				cmdArgs = append(cmdArgs, "--project", parsed.ProjectFile)
 			}
 
@@ -803,7 +813,7 @@ func GetTermGetAgentStatusToolDefinition(tabId string) uctypes.ToolDefinition {
 	return uctypes.ToolDefinition{
 		Name:        "term_get_agent_status",
 		DisplayName: "Get Agent Status",
-		Description: "Check the status of a spawned agent terminal. Returns status (compacting|active|idle|error|unknown), context usage percentage, and agent metadata. Works by reading the terminal scrollback and runtime info.",
+		Description: "Check agent metadata and advisory status. For Kilo full-screen TUIs, scrollback may be blank; use capture_screenshot as the source of truth for visible readiness, responses, and completion.",
 		ToolLogName: "term:agentstatus",
 		InputSchema: map[string]any{
 			"type": "object",
@@ -911,7 +921,9 @@ func GetTermGetAgentStatusToolDefinition(tabId string) uctypes.ToolDefinition {
 					break
 				}
 				if strings.HasSuffix(strings.TrimSpace(lines[i]), ">") ||
-					strings.Contains(line, "waiting for input") {
+					strings.Contains(line, "waiting for input") ||
+					strings.Contains(line, "ask anything") ||
+					strings.Contains(line, "ctrl+p") {
 					status = "idle"
 					break
 				}
@@ -922,9 +934,21 @@ func GetTermGetAgentStatusToolDefinition(tabId string) uctypes.ToolDefinition {
 			shellState := ""
 			if rtInfo != nil {
 				shellState = rtInfo.ShellState
-				if shellState == "ready" {
-					status = "idle"
-				} else if shellState == "running-command" {
+				if status == "unknown" {
+					if shellState == "ready" {
+						status = "idle"
+					} else if shellState == "running-command" {
+						status = "active"
+					}
+				}
+			}
+
+			if status == "unknown" && blockData != nil && blockData.Meta != nil {
+				if cmd, ok := blockData.Meta[waveobj.MetaKey_Cmd].(string); ok &&
+					strings.EqualFold(cmd, "kilo") {
+					// Kilo's alternate-screen TUI can legitimately expose only
+					// whitespace to scrollback. The process exists; visual state
+					// must be checked with capture_screenshot.
 					status = "active"
 				}
 			}
@@ -946,8 +970,8 @@ func GetTermGetAgentStatusToolDefinition(tabId string) uctypes.ToolDefinition {
 const TermRunCommandPollInterval = 100 * time.Millisecond
 
 type TermRunCommandToolInput struct {
-	WidgetId     string `json:"widget_id"`
-	Command      string `json:"command"`
+	WidgetId      string `json:"widget_id"`
+	Command       string `json:"command"`
 	WaitTimeoutMs int    `json:"waittimeoutms,omitempty"`
 }
 

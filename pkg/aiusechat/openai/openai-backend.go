@@ -471,16 +471,25 @@ func RemoveToolUseCall(chatId string, callId string) error {
 		return fmt.Errorf("chat not found: %s", chatId)
 	}
 
+	// Remove both sides of a failed tool exchange. Leaving a
+	// function_call_output behind after removing its function_call poisons the
+	// next OpenAI Responses request.
+	var messageIds []string
 	for _, genMsg := range chat.NativeMessages {
 		chatMsg, ok := genMsg.(*OpenAIChatMessage)
 		if !ok {
 			continue
 		}
 
-		if chatMsg.FunctionCall != nil && chatMsg.FunctionCall.CallId == callId {
-			chatstore.DefaultChatStore.RemoveMessage(chatId, chatMsg.MessageId)
-			return nil
+		matchesCall := chatMsg.FunctionCall != nil && chatMsg.FunctionCall.CallId == callId
+		matchesOutput := chatMsg.FunctionCallOutput != nil && chatMsg.FunctionCallOutput.CallId == callId
+		if matchesCall || matchesOutput {
+			messageIds = append(messageIds, chatMsg.MessageId)
 		}
+	}
+
+	for _, messageId := range messageIds {
+		chatstore.DefaultChatStore.RemoveMessage(chatId, messageId)
 	}
 
 	return nil
@@ -557,6 +566,27 @@ func RunOpenAIChatStep(
 			cleanedFunctionCall := chatMsg.FunctionCall.clean()
 			inputs = append(inputs, *cleanedFunctionCall)
 		} else if chatMsg.FunctionCallOutput != nil {
+			callId := chatMsg.FunctionCallOutput.CallId
+			hasMatchingCall := false
+			duplicateOutput := false
+
+			for _, input := range inputs {
+				switch value := input.(type) {
+				case OpenAIFunctionCallInput:
+					if value.CallId == callId {
+						hasMatchingCall = true
+					}
+				case OpenAIFunctionCallOutputInput:
+					if value.CallId == callId {
+						duplicateOutput = true
+					}
+				}
+			}
+
+			if callId == "" || !hasMatchingCall || duplicateOutput {
+				continue
+			}
+
 			inputs = append(inputs, *chatMsg.FunctionCallOutput)
 		}
 	}
