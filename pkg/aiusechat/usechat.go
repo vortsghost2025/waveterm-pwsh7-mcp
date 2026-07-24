@@ -31,8 +31,12 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/waveappstore"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
+	"github.com/wavetermdev/waveterm/pkg/wcore"
 	"github.com/wavetermdev/waveterm/pkg/web/sse"
 	"github.com/wavetermdev/waveterm/pkg/wps"
+	"github.com/wavetermdev/waveterm/pkg/wshrpc"
+	"github.com/wavetermdev/waveterm/pkg/wshrpc/wshclient"
+	"github.com/wavetermdev/waveterm/pkg/wshutil"
 	"github.com/wavetermdev/waveterm/pkg/wstore"
 )
 
@@ -385,6 +389,75 @@ func processAllToolCalls(backend UseChatBackend, stopReason *uctypes.WaveStopRea
 			}
 		}
 	}
+
+	// Check for term_send_input tool calls targeting agent terminals and create delegations
+	for _, toolCall := range stopReason.ToolCalls {
+		if toolCall.Name == "term_send_input" && toolCall.Input != nil {
+			// Parse the input to get the widget_id
+			inputBytes, err := json.Marshal(toolCall.Input)
+			if err != nil {
+				continue
+			}
+			var parsed struct {
+				WidgetId string `json:"widget_id"`
+			}
+			if err := json.Unmarshal(inputBytes, &parsed); err != nil || parsed.WidgetId == "" {
+				continue
+			}
+
+			// Resolve the widget ID to a full block ID
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			fullBlockId, err := wcore.ResolveBlockIdFromPrefix(ctx, chatOpts.TabId, parsed.WidgetId)
+			if err != nil {
+				continue
+			}
+
+			// Check if this is an agent terminal
+			isAgent, err := IsAgentTerminal(ctx, fullBlockId)
+			if err != nil || !isAgent {
+				continue
+			}
+
+			// Create delegation record
+			delegation := &DelegationRecord{
+				DeliveryId:           GenerateDeliveryId(),
+				OriginatingChatId:    chatOpts.ChatId,
+				OriginatingTabId:     chatOpts.TabId,
+				TargetBlockId:        fullBlockId,
+				DelegatedAt:          time.Now(),
+				BaselineOutputMarker: "",
+				TargetRunState:       "unknown",
+				DeliveryState:        DelegationStateDelegated,
+			}
+
+			// Get baseline output (current scrollback)
+			scrollbackResp, err := wshclient.TermGetScrollbackLinesCommand(
+				wshclient.GetBareRpcClient(),
+				wshrpc.CommandTermGetScrollbackLinesData{
+					LineStart:   0,
+					LineEnd:     100,
+					LastCommand: false,
+				},
+				&wshrpc.RpcOpts{
+					Route:   wshutil.MakeFeBlockRouteId(fullBlockId),
+					Timeout: 5000,
+				},
+			)
+			if err == nil {
+				delegation.BaselineOutputMarker = strings.Join(scrollbackResp.Lines, "\n")
+			}
+
+			// Store the delegation
+			GetDelegationStore().Create(delegation)
+
+			// Start the delegation monitor if not already running
+			GetDelegationMonitor().Start()
+
+			// Start the bridge outbox poller to auto-route agent completions
+			GetBridgeOutboxPoller().Start()
+		}
+	}
 }
 
 func RunAIChat(ctx context.Context, sseHandler *sse.SSEHandlerCh, backend UseChatBackend, chatOpts uctypes.WaveChatOpts) (*uctypes.AIMetrics, error) {
@@ -392,6 +465,38 @@ func RunAIChat(ctx context.Context, sseHandler *sse.SSEHandlerCh, backend UseCha
 		return nil, fmt.Errorf("chat %s is already running", chatOpts.ChatId)
 	}
 	defer activeChats.Delete(chatOpts.ChatId)
+	defer ClearLastActiveChatInfo(chatOpts.ChatId)
+
+	// Set this chat as the last active chat for the outbox poller
+	SetLastActiveChatInfo(chatOpts.ChatId, chatOpts.TabId)
+
+	// Set up pairing mode: when ai:agentpairing is on, intercept assistant text
+	// output and write it to the bridge outbox for agent-to-agent communication
+	if isAgentPairingEnabled() {
+		sseHandler.SuppressFrontend = true
+		sseHandler.TextEndCallback = func(textId string, accumulated string) {
+			if accumulated == "" {
+				return
+			}
+			go writePairingTextToBridge(accumulated)
+		}
+		go func() {
+			wps.Broker.Publish(wps.WaveEvent{
+				Event:   wps.Event_AgentPairingMode,
+				Data:    true,
+				Persist: 1,
+			})
+		}()
+		GetBridgeInboxPoller().Start()
+	} else {
+		go func() {
+			wps.Broker.Publish(wps.WaveEvent{
+				Event:   wps.Event_AgentPairingMode,
+				Data:    false,
+				Persist: 1,
+			})
+		}()
+	}
 
 	stepNum := chatstore.DefaultChatStore.CountUserMessages(chatOpts.ChatId)
 	aiProvider := chatOpts.Config.Provider
@@ -484,6 +589,13 @@ func RunAIChat(ctx context.Context, sseHandler *sse.SSEHandlerCh, backend UseCha
 		if stopReason != nil && stopReason.Kind == uctypes.StopKindToolUse {
 			metrics.ToolUseCount += len(stopReason.ToolCalls)
 			processAllToolCalls(backend, stopReason, chatOpts, sseHandler, metrics)
+
+			// Check if there's an active delegation for this chat
+			// If so, don't continue the loop - let the delegation monitor resume later
+			if GetDelegationStore().HasActiveDelegation(chatOpts.ChatId) {
+				break
+			}
+
 			cont = &uctypes.WaveContinueResponse{
 				Model:            chatOpts.Config.Model,
 				ContinueFromKind: uctypes.StopKindToolUse,
@@ -909,4 +1021,21 @@ func generateBuilderAppData(appId string) (string, string, string, error) {
 	}
 
 	return appGoFile, staticFilesJSON, platformInfo, nil
+}
+
+type TermRunCommandTarget struct {
+	BlockId  string
+	HasFound bool
+}
+
+func selectTermRunCommandTarget(requestedBlockId string, requestedReady bool, others []struct{ BlockId, ShellState string }) TermRunCommandTarget {
+	if requestedReady {
+		return TermRunCommandTarget{BlockId: requestedBlockId, HasFound: true}
+	}
+	for _, other := range others {
+		if other.BlockId != requestedBlockId && other.ShellState == "ready" {
+			return TermRunCommandTarget{BlockId: other.BlockId, HasFound: true}
+		}
+	}
+	return TermRunCommandTarget{}
 }

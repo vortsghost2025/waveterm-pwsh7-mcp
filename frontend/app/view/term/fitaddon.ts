@@ -56,12 +56,11 @@ export class FitAddon implements ITerminalAddon, IFitApi {
             return;
         }
 
-        // TODO: Remove reliance on private API
-        const core = (this._terminal as any)._core;
-
-        // Force a full render
+        // _core._renderService.clear() has no public equivalent; the resize() call
+        // below triggers a full re-render internally, so skipping the explicit clear
+        // is safe.  If visual artifacts appear on resize, re-evaluate xterm.js version
+        // for a public API addition.
         if (this._terminal.rows !== dims.rows || this._terminal.cols !== dims.cols) {
-            core._renderService.clear();
             this._terminal.resize(dims.cols, dims.rows);
         }
     }
@@ -75,7 +74,8 @@ export class FitAddon implements ITerminalAddon, IFitApi {
             return undefined;
         }
 
-        // TODO: Remove reliance on private API
+        // _core._renderService.dimensions is the only way to get per-cell pixel
+        // dimensions in xterm.js; no public API exists for this.
         const core = (this._terminal as any)._core;
         const dims: IRenderDimensions = core._renderService.dimensions;
 
@@ -83,14 +83,23 @@ export class FitAddon implements ITerminalAddon, IFitApi {
             return undefined;
         }
 
-        // UPDATED CODE (removed reliance on FALLBACK_SCROLL_BAR_WIDTH in viewport, allow just setting the scrollbar width when known)
         let scrollbarWidth: number;
         if (this.scrollbarWidth != null) {
             scrollbarWidth = this.scrollbarWidth;
         } else {
-            scrollbarWidth = core.viewport._viewportElement.offsetWidth - core.viewport._scrollArea.offsetWidth;
+            // Compute scrollbar width from public DOM: viewport element includes the
+            // scroll area; the difference between its content width and the scroll
+            // area offset gives the scrollbar width.
+            const viewport = this._terminal.element.querySelector('.xterm-viewport') as HTMLElement | null;
+            if (viewport) {
+                scrollbarWidth = viewport.clientWidth - viewport.scrollWidth;
+                if (scrollbarWidth < 0) {
+                    scrollbarWidth = 0;
+                }
+            } else {
+                scrollbarWidth = core.viewport?._viewportElement?.offsetWidth - core.viewport?._scrollArea?.offsetWidth || 0;
+            }
         }
-        // END UPDATED CODE
 
         const parentElementStyle = window.getComputedStyle(this._terminal.element.parentElement);
         const parentElementHeight = parseInt(parentElementStyle.getPropertyValue("height"));

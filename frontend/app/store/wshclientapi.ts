@@ -678,6 +678,18 @@ export class RpcApiType {
         return client.wshRpcCall("memorydelete", data, opts);
     }
 
+    // command "memorydeletebyscope" [call]
+    MemoryDeleteByScopeCommand(client: WshClient, data: MemoryDeleteByScopeRequest, opts?: RpcOpts): Promise<MemoryDeleteByScopeResponse> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "memorydeletebyscope", data, opts);
+        return client.wshRpcCall("memorydeletebyscope", data, opts);
+    }
+
+    // command "memorydeletemany" [call]
+    MemoryDeleteManyCommand(client: WshClient, data: MemoryDeleteManyRequest, opts?: RpcOpts): Promise<MemoryDeleteManyResponse> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "memorydeletemany", data, opts);
+        return client.wshRpcCall("memorydeletemany", data, opts);
+    }
+
     // command "memoryget" [call]
     MemoryGetCommand(client: WshClient, data: MemoryGetRequest, opts?: RpcOpts): Promise<MemoryGetResponse> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "memoryget", data, opts);

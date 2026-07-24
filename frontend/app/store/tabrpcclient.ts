@@ -63,12 +63,16 @@ export class TabClient extends WshClient {
     }
 
     async handle_waveaiaddcontext(rh: RpcResponseHelper, data: CommandWaveAIAddContextData): Promise<void> {
+        const model = WaveAIModel.getInstance();
+
+        if (data.chatid && data.chatid !== model.getChatId()) {
+            throw new Error("chat-not-active:" + data.chatid);
+        }
+
         const workspaceLayoutModel = WorkspaceLayoutModel.getInstance();
         if (!workspaceLayoutModel.getAIPanelVisible()) {
             workspaceLayoutModel.setAIPanelVisible(true, { nofocus: true });
         }
-
-        const model = WaveAIModel.getInstance();
 
         if (data.newchat) {
             model.clearChat();

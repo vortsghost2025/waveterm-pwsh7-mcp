@@ -958,6 +958,58 @@ func ConnectToClient(connCtx context.Context, opts *SSHOpts, currentClient *ssh.
 	return client, debugInfo.JumpNum, nil
 }
 
+// splitKnownHostsPaths splits an SSH config multi-valued path string.
+// Handles escaped spaces (\ ), double-quoted segments, and plain space-separated values.
+// Example: "/path/with spaces/hosts /simple/path" → ["/path/with spaces/hosts", "/simple/path"]
+func splitKnownHostsPaths(raw string) []string {
+	var result []string
+	var current strings.Builder
+	inQuote := false
+	i := 0
+	for i < len(raw) {
+		ch := raw[i]
+		if inQuote {
+			if ch == '\\' && i+1 < len(raw) && raw[i+1] == '"' {
+				current.WriteByte('"')
+				i += 2
+				continue
+			}
+			if ch == '"' {
+				inQuote = false
+				i++
+				continue
+			}
+			current.WriteByte(ch)
+			i++
+			continue
+		}
+		if ch == '\\' && i+1 < len(raw) && raw[i+1] == ' ' {
+			current.WriteByte(' ')
+			i += 2
+			continue
+		}
+		if ch == '"' {
+			inQuote = true
+			i++
+			continue
+		}
+		if ch == ' ' || ch == '\t' {
+			if current.Len() > 0 {
+				result = append(result, current.String())
+				current.Reset()
+			}
+			i++
+			continue
+		}
+		current.WriteByte(ch)
+		i++
+	}
+	if current.Len() > 0 {
+		result = append(result, current.String())
+	}
+	return result
+}
+
 // note that a `var == "yes"` will default to false
 // but `var != "no"` will default to true
 // when given unexpected strings
@@ -1101,9 +1153,9 @@ func findSshConfigKeywords(hostPattern string) (connKeywords *wconfig.ConnKeywor
 		sshKeywords.SshProxyJump = append(sshKeywords.SshProxyJump, proxyJumpName)
 	}
 	rawUserKnownHostsFile, _ := WaveSshConfigUserSettings().GetStrict(hostPattern, "UserKnownHostsFile")
-	sshKeywords.SshUserKnownHostsFile = strings.Fields(rawUserKnownHostsFile) // TODO - smarter splitting escaped spaces and quotes
+	sshKeywords.SshUserKnownHostsFile = splitKnownHostsPaths(rawUserKnownHostsFile)
 	rawGlobalKnownHostsFile, _ := WaveSshConfigUserSettings().GetStrict(hostPattern, "GlobalKnownHostsFile")
-	sshKeywords.SshGlobalKnownHostsFile = strings.Fields(rawGlobalKnownHostsFile) // TODO - smarter splitting escaped spaces and quotes
+	sshKeywords.SshGlobalKnownHostsFile = splitKnownHostsPaths(rawGlobalKnownHostsFile)
 
 	return sshKeywords, nil
 }

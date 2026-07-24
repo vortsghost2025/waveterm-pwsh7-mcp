@@ -545,6 +545,7 @@ type CommandWaveAIAddContextData struct {
 	Text    string           `json:"text,omitempty"`
 	Submit  bool             `json:"submit,omitempty"`
 	NewChat bool             `json:"newchat,omitempty"`
+	ChatId  string           `json:"chatid,omitempty"`
 }
 
 type CommandWaveAIGetToolDiffData struct {

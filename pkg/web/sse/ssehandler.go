@@ -77,15 +77,22 @@ type SSEHandlerCh struct {
 	wg              sync.WaitGroup
 	onCloseHandlers utilds.IdList[func()]
 	handlersRun     bool
+
+	TextDeltaCallback func(textId string, delta string)
+	TextEndCallback   func(textId string, accumulated string)
+	textAccumulators  map[string]*strings.Builder
+
+	SuppressFrontend bool
 }
 
 // MakeSSEHandlerCh creates a new channel-based SSE handler
 func MakeSSEHandlerCh(w http.ResponseWriter, ctx context.Context) *SSEHandlerCh {
 	return &SSEHandlerCh{
-		w:       w,
-		rc:      http.NewResponseController(w),
-		ctx:     ctx,
-		writeCh: make(chan SSEMessage, 10), // Buffered to prevent blocking
+		w:               w,
+		rc:              http.NewResponseController(w),
+		ctx:             ctx,
+		writeCh:         make(chan SSEMessage, 10), // Buffered to prevent blocking
+		textAccumulators: make(map[string]*strings.Builder),
 	}
 }
 
@@ -374,6 +381,16 @@ func (h *SSEHandlerCh) AiMsgStart(messageId string) error {
 }
 
 func (h *SSEHandlerCh) AiMsgTextStart(textId string) error {
+	h.lock.Lock()
+	if h.textAccumulators != nil {
+		h.textAccumulators[textId] = &strings.Builder{}
+	}
+	cb := h.TextDeltaCallback
+	h.lock.Unlock()
+	if h.SuppressFrontend {
+		return nil
+	}
+	_ = cb
 	resp := map[string]interface{}{
 		"type": AiMsgTextStart,
 		"id":   textId,
@@ -382,6 +399,20 @@ func (h *SSEHandlerCh) AiMsgTextStart(textId string) error {
 }
 
 func (h *SSEHandlerCh) AiMsgTextDelta(textId string, text string) error {
+	h.lock.Lock()
+	if h.textAccumulators != nil {
+		if sb, ok := h.textAccumulators[textId]; ok {
+			sb.WriteString(text)
+		}
+	}
+	cb := h.TextDeltaCallback
+	h.lock.Unlock()
+	if cb != nil {
+		cb(textId, text)
+	}
+	if h.SuppressFrontend {
+		return nil
+	}
 	resp := map[string]interface{}{
 		"type":  AiMsgTextDelta,
 		"id":    textId,
@@ -391,6 +422,22 @@ func (h *SSEHandlerCh) AiMsgTextDelta(textId string, text string) error {
 }
 
 func (h *SSEHandlerCh) AiMsgTextEnd(textId string) error {
+	h.lock.Lock()
+	var accumulated string
+	if h.textAccumulators != nil {
+		if sb, ok := h.textAccumulators[textId]; ok {
+			accumulated = sb.String()
+			delete(h.textAccumulators, textId)
+		}
+	}
+	cb := h.TextEndCallback
+	h.lock.Unlock()
+	if cb != nil {
+		cb(textId, accumulated)
+	}
+	if h.SuppressFrontend {
+		return nil
+	}
 	resp := map[string]interface{}{
 		"type": AiMsgTextEnd,
 		"id":   textId,

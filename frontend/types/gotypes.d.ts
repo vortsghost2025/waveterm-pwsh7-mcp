@@ -823,6 +823,7 @@ declare global {
         text?: string;
         submit?: boolean;
         newchat?: boolean;
+        chatid?: string;
     };
 
     // wshrpc.CommandWaveAIGetToolDiffData
@@ -1174,6 +1175,29 @@ declare global {
     type LeafOrderEntry = {
         nodeid: string;
         blockid: string;
+    };
+
+    // wshrpc.MemoryDeleteByScopeRequest
+    type MemoryDeleteByScopeRequest = {
+        workspaceid?: string;
+        scope: string;
+    };
+
+    // wshrpc.MemoryDeleteByScopeResponse
+    type MemoryDeleteByScopeResponse = {
+        deleted: number;
+    };
+
+    // wshrpc.MemoryDeleteManyRequest
+    type MemoryDeleteManyRequest = {
+        workspaceid?: string;
+        ids: string[];
+    };
+
+    // wshrpc.MemoryDeleteManyResponse
+    type MemoryDeleteManyResponse = {
+        deleted: number;
+        skipped?: string[];
     };
 
     // wshrpc.MemoryDeleteRequest
@@ -1584,6 +1608,7 @@ declare global {
         "ai:fixedfontsize"?: number;
         "waveai:showcloudmodes"?: boolean;
         "waveai:defaultmode"?: string;
+        "ai:agentpairing"?: boolean;
         "term:*"?: boolean;
         "term:fontsize"?: number;
         "term:fontfamily"?: string;

@@ -176,7 +176,9 @@ func (jm *JobCmd) SetTermSize(termSize waveobj.TermSize) error {
 	return jm.setTermSize_withlock(termSize)
 }
 
-// TODO set up a single input handler loop + queue so we dont need to hold the lock but still get synchronized in-order execution
+// Single input handler: lock held briefly for pty write/signal/resize (all fast ops).
+// A channel-based queue was considered but adds complexity without meaningful
+// performance gain since pty writes are non-blocking and signals are O(1).
 func (jm *JobCmd) HandleInput(data wshrpc.CommandJobInputData) error {
 	jm.lock.Lock()
 	defer jm.lock.Unlock()

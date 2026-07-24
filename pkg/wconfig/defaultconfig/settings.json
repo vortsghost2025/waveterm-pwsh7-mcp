@@ -40,5 +40,6 @@
     "term:durable": false,
     "waveai:showcloudmodes": true,
     "waveai:defaultmode": "waveai@balanced",
+    "ai:agentpairing": false,
     "preview:defaultsort": "name"
 }

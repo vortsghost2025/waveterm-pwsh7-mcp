@@ -178,6 +178,8 @@ func GenerateTabStateAndTools(ctx context.Context, tabid string, widgetAccess bo
 		tools = append(tools, GetDeleteTextFileToolDefinition())
 		tools = append(tools, GetBridgeReadInboxToolDefinition())
 		tools = append(tools, GetBridgeWriteReplyToolDefinition())
+		tools = append(tools, GetMessageRoutingToolDefinition())
+		tools = append(tools, GetDeterministicRoutingToolDefinition())
 		tools = append(tools, GetAISelfIntroToolDefinition())
 		tools = append(tools, GetRunCommandToolDefinition())
 		tools = append(tools, GetRunInteractiveCommandToolDefinition())
