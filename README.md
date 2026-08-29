@@ -11,6 +11,30 @@
 
 # Wave Terminal
 
+> **This is a modified Wave Terminal fork.** The upstream project is maintained by the Wave team. This repository preserves the upstream application and adds Windows/PowerShell 7, AI-provider, agent/MCP, terminal-control, and reliability work developed in this fork.
+
+## What this fork changes
+
+This fork is used to build and validate practical extensions to Wave rather than maintain a cosmetic rebrand. The work includes:
+
+- **PowerShell 7 / Windows integration** — Windows shell detection, PowerShell-oriented execution paths, and terminal behavior.
+- **AI provider integration** — provider-routing and BYOK work, including NVIDIA-backed model configuration.
+- **Agent and MCP-oriented tooling** — experiments around external agents, tool routing, terminal interaction, and automation.
+- **Streamed WSH command execution** — RPC support for commands that emit stdout/stderr events while running.
+- **Terminal information RPC** — terminal/session information exposed through WSH.
+- **WSH terminal input** — CLI support for sending input to terminal widgets.
+- **Reliability and verification work** — isolated feature branches, regression tests, runtime checks, and clean transplantation of changes when branch history is unsuitable for review.
+
+### Current clean feature review
+
+[`PR #22 — feat(wshrpc): add stream command execution and terminal info`](https://github.com/vortsghost2025/waveterm-pwsh7-mcp/pull/22) is a deliberately isolated review of the streamed-command/terminal-info work. It is one commit changing 9 files with 512 additions, rebuilt on a clean `main` base after the original development branch accumulated unsuitable ancestry for review.
+
+Verification recorded with the change includes generation, Go build/vet, targeted WSH RPC tests, and a Windows PowerShell 7 runtime check. A full-suite `pkg/tsgen` failure was separately reproduced on the pristine base and documented as pre-existing rather than attributed to the feature.
+
+The broader experimental work remains visible in repository history and branches so the implementation trail is inspectable rather than presented as a black box.
+
+---
+
 <div align="center">
 
 [English](README.md) | [한국어](README.ko.md) | [繁體中文](README.zh-TW.md)
