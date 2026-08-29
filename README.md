@@ -11,27 +11,84 @@
 
 # Wave Terminal
 
-> **This is a modified Wave Terminal fork.** The upstream project is maintained by the Wave team. This repository preserves the upstream application and adds Windows/PowerShell 7, AI-provider, agent/MCP, terminal-control, and reliability work developed in this fork.
+> **This is a heavily modified Wave Terminal fork focused on making Wave agent-operable, not just AI-assisted.** The upstream project is maintained by the Wave team. This fork preserves the upstream application while adding Windows/PowerShell 7 execution, AI-accessible terminal control, agent/MCP tooling, model-provider routing, and verification/reliability work.
 
-## What this fork changes
+## What this fork is building
 
-This fork is used to build and validate practical extensions to Wave rather than maintain a cosmetic rebrand. The work includes:
+The goal is to turn Wave into an execution and coordination surface where AI agents can inspect the workspace, find terminals and widgets, run controlled shell work, interact with terminal sessions, and hand work to external CLI agents instead of requiring a human to manually relay every step.
 
-- **PowerShell 7 / Windows integration** — Windows shell detection, PowerShell-oriented execution paths, and terminal behavior.
-- **AI provider integration** — provider-routing and BYOK work, including NVIDIA-backed model configuration.
-- **Agent and MCP-oriented tooling** — experiments around external agents, tool routing, terminal interaction, and automation.
-- **Streamed WSH command execution** — RPC support for commands that emit stdout/stderr events while running.
-- **Terminal information RPC** — terminal/session information exposed through WSH.
-- **WSH terminal input** — CLI support for sending input to terminal widgets.
-- **Reliability and verification work** — isolated feature branches, regression tests, runtime checks, and clean transplantation of changes when branch history is unsuitable for review.
+This is not a cosmetic reskin. The modifications are aimed at giving Wave AI and connected agents practical control-plane capabilities while keeping the work inspectable and testable.
 
-### Current clean feature review
+### Agent-operable terminal control
 
-[`PR #22 — feat(wshrpc): add stream command execution and terminal info`](https://github.com/vortsghost2025/waveterm-pwsh7-mcp/pull/22) is a deliberately isolated review of the streamed-command/terminal-info work. It is one commit changing 9 files with 512 additions, rebuilt on a clean `main` base after the original development branch accumulated unsuitable ancestry for review.
+Published work in this fork includes:
 
-Verification recorded with the change includes generation, Go build/vet, targeted WSH RPC tests, and a Windows PowerShell 7 runtime check. A full-suite `pkg/tsgen` failure was separately reproduced on the pristine base and documented as pre-existing rather than attributed to the feature.
+- **AI-accessible command execution** — `run_interactive_command` provides structured, time-bounded shell execution with approval, command allowlisting, output limits, timeout handling, exit status, stdout, and stderr.
+- **Terminal/widget discovery** — `term_list_widgets` lets agents enumerate terminal and widget targets directly from Wave's in-process store rather than relying on brittle shell parsing.
+- **Workspace discovery** — `list_workspaces`, `list_tabs`, and `get_widget` let agents discover the Wave UI hierarchy and inspect target widgets before acting.
+- **WSH terminal input** — agents/tools can send input to terminal widgets through the WSH command surface.
+- **Streamed command execution** — WSH RPC work streams stdout/stderr/exit events while commands are running instead of waiting for a single final result.
+- **Terminal information RPC** — terminal/session information is exposed through WSH for programmatic inspection.
+- **MCP-oriented command and filesystem tooling** — the fork adds guarded file operations, command execution, terminal discovery, and related integration paths for external tooling.
 
-The broader experimental work remains visible in repository history and branches so the implementation trail is inspectable rather than presented as a black box.
+Upstream Wave's README currently describes command execution as **"Coming Soon"**. This fork already contains implemented command-execution and terminal-control paths intended for agent use.
+
+### Agent orchestration and communication
+
+The broader direction of the fork is autonomous and human-supervised agent coordination inside the terminal environment:
+
+- Wave AI can use terminal/workspace discovery instead of operating blindly.
+- Terminal execution paths are designed so work can be launched and monitored programmatically.
+- External CLI-agent orchestration is being developed so Wave can spawn or route work to CLI agents rather than requiring manual copy/paste handoffs.
+- WSH-based messaging plus inbox/outbox-style communication is being developed for asynchronous agent-to-agent coordination, so workers can exchange work and results without the user acting as the message bus.
+
+Some orchestration/inbox-outbox pieces remain active development rather than part of the clean review branch; they are called out separately here so published features are not confused with work still being integrated.
+
+### Windows and PowerShell 7
+
+Windows is a first-class target in this fork rather than an afterthought:
+
+- PowerShell 7-aware shell selection and execution.
+- Cross-platform shell execution paths using PowerShell on Windows.
+- Windows-specific runtime verification rather than assuming Unix shell behavior.
+- PowerShell-oriented terminal behavior and WSH integration.
+
+### AI provider and model routing
+
+The fork also extends Wave's AI-provider surface:
+
+- NVIDIA NIM / BYOK model configuration through `NVIDIA_API_KEY` environment-based secret lookup.
+- Additional NVIDIA/Nemotron model modes, including large-context agentic/coding models.
+- OpenAI-compatible provider routing without embedding API-key values in the repository.
+
+### Verification-first development
+
+The modification history intentionally includes evidence of how changes were validated, not just the final code:
+
+- targeted regression tests,
+- generated-binding checks,
+- Go build and vet validation,
+- Windows PowerShell runtime checks,
+- scoped command/allowlist tests,
+- and clean transplantation of features when an earlier development branch became unsuitable for review.
+
+The point is to make the implementation trail inspectable rather than present agent behavior as a black box.
+
+## Current clean feature review
+
+[`PR #22 — feat(wshrpc): add stream command execution and terminal info`](https://github.com/vortsghost2025/waveterm-pwsh7-mcp/pull/22) is a deliberately isolated review of the streamed-command/terminal-info/input work.
+
+- **1 commit**
+- **9 changed files**
+- **512 additions**
+- generated Go/TypeScript bindings
+- targeted WSH RPC test coverage
+- Go build/vet verification
+- Windows PowerShell 7 runtime verification
+
+It was rebuilt on a clean `main` base after the original development branch accumulated unsuitable ancestry for review. A full-suite `pkg/tsgen` failure was separately reproduced on the pristine base and documented as pre-existing instead of being misattributed to the feature.
+
+The broader experimental history remains visible in the repository so the progression from upstream Wave to this agent-operable fork can be inspected directly.
 
 ---
 
