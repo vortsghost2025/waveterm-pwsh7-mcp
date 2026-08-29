@@ -635,6 +635,23 @@ declare global {
         builderid: string;
     };
 
+    // wshrpc.CommandRunStreamEvent
+    type CommandRunStreamEvent = {
+        eventtype: string;
+        data?: string;
+        exit_code?: number;
+        error?: string;
+    };
+
+    // wshrpc.CommandRunStreamRequest
+    type CommandRunStreamRequest = {
+        block_id: string;
+        command: string;
+        cwd?: string;
+        env?: string[];
+        interactive?: boolean;
+    };
+
     // wshrpc.CommandSetMetaData
     type CommandSetMetaData = {
         oref: ORef;
@@ -1681,6 +1698,20 @@ declare global {
         name: string;
         layoutstate: string;
         blockids: string[];
+    };
+
+    // wshrpc.TermInfo
+    type TermInfo = {
+        block_id: string;
+        cwd?: string;
+        env?: string[];
+        shell?: string;
+        pid?: number;
+    };
+
+    // wshrpc.TermInfoRequest
+    type TermInfoRequest = {
+        block_id: string;
     };
 
     // waveobj.TermSize

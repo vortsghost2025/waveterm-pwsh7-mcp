@@ -6,6 +6,7 @@ package wshserver
 // this file contains the implementation of the wsh server methods
 
 import (
+	"bufio"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -14,10 +15,12 @@ import (
 	"io/fs"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/skratchdot/open-golang/open"
@@ -1573,4 +1576,129 @@ func (ws *WshServer) JobControllerDetachJobCommand(ctx context.Context, jobId st
 
 func (ws *WshServer) BlockJobStatusCommand(ctx context.Context, blockId string) (*wshrpc.BlockJobStatusData, error) {
 	return jobcontroller.GetBlockJobStatus(ctx, blockId)
+}
+
+func (ws *WshServer) TermInfoCommand(ctx context.Context, data wshrpc.TermInfoRequest) (*wshrpc.TermInfo, error) {
+	block, err := wstore.DBMustGet[*waveobj.Block](ctx, data.BlockID)
+	if err != nil {
+		return nil, fmt.Errorf("getting block %s: %w", data.BlockID, err)
+	}
+	cwd := block.Meta.GetString(waveobj.MetaKey_CmdCwd, "")
+	return &wshrpc.TermInfo{
+		BlockID: data.BlockID,
+		Cwd:     cwd,
+	}, nil
+}
+
+func (ws *WshServer) CommandRunStreamCommand(ctx context.Context, req wshrpc.CommandRunStreamRequest) chan wshrpc.RespOrErrorUnion[wshrpc.CommandRunStreamEvent] {
+	rtn := make(chan wshrpc.RespOrErrorUnion[wshrpc.CommandRunStreamEvent])
+	if req.Interactive {
+		go func() {
+			defer close(rtn)
+			rtn <- wshrpc.RespOrErrorUnion[wshrpc.CommandRunStreamEvent]{
+				Response: wshrpc.CommandRunStreamEvent{
+					EventType: wshrpc.CommandRunStreamEvent_Error,
+					Error:     "interactive mode not yet implemented",
+				},
+			}
+		}()
+		return rtn
+	}
+	go func() {
+		defer close(rtn)
+		defer func() {
+			panichandler.PanicHandler("CommandRunStreamCommand", recover())
+		}()
+		cmdCtx, cmdCancel := context.WithCancel(ctx)
+		defer cmdCancel()
+		shell := shellutil.DetectLocalShellPath()
+		cmd := exec.CommandContext(cmdCtx, shell, "-c", req.Command)
+		if req.Cwd != "" {
+			cmd.Dir = req.Cwd
+		}
+		if len(req.Env) > 0 {
+			cmd.Env = append(os.Environ(), req.Env...)
+		}
+		stdoutPipe, err := cmd.StdoutPipe()
+		if err != nil {
+			rtn <- wshrpc.RespOrErrorUnion[wshrpc.CommandRunStreamEvent]{
+				Response: wshrpc.CommandRunStreamEvent{
+					EventType: wshrpc.CommandRunStreamEvent_Error,
+					Error:     fmt.Sprintf("creating stdout pipe: %v", err),
+				},
+			}
+			return
+		}
+		stderrPipe, err := cmd.StderrPipe()
+		if err != nil {
+			rtn <- wshrpc.RespOrErrorUnion[wshrpc.CommandRunStreamEvent]{
+				Response: wshrpc.CommandRunStreamEvent{
+					EventType: wshrpc.CommandRunStreamEvent_Error,
+					Error:     fmt.Sprintf("creating stderr pipe: %v", err),
+				},
+			}
+			return
+		}
+		err = cmd.Start()
+		if err != nil {
+			rtn <- wshrpc.RespOrErrorUnion[wshrpc.CommandRunStreamEvent]{
+				Response: wshrpc.CommandRunStreamEvent{
+					EventType: wshrpc.CommandRunStreamEvent_Error,
+					Error:     fmt.Sprintf("starting command: %v", err),
+				},
+			}
+			return
+		}
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			scanner := bufio.NewScanner(stdoutPipe)
+			for scanner.Scan() {
+				line := scanner.Text()
+				rtn <- wshrpc.RespOrErrorUnion[wshrpc.CommandRunStreamEvent]{
+					Response: wshrpc.CommandRunStreamEvent{
+						EventType: wshrpc.CommandRunStreamEvent_Stdout,
+						Data:      line + "\n",
+					},
+				}
+			}
+		}()
+		go func() {
+			defer wg.Done()
+			scanner := bufio.NewScanner(stderrPipe)
+			for scanner.Scan() {
+				line := scanner.Text()
+				rtn <- wshrpc.RespOrErrorUnion[wshrpc.CommandRunStreamEvent]{
+					Response: wshrpc.CommandRunStreamEvent{
+						EventType: wshrpc.CommandRunStreamEvent_Stderr,
+						Data:      line + "\n",
+					},
+				}
+			}
+		}()
+		wg.Wait()
+		err = cmd.Wait()
+		exitCode := 0
+		if err != nil {
+			if exitErr, ok := err.(*exec.ExitError); ok {
+				exitCode = exitErr.ExitCode()
+			} else {
+				rtn <- wshrpc.RespOrErrorUnion[wshrpc.CommandRunStreamEvent]{
+					Response: wshrpc.CommandRunStreamEvent{
+						EventType: wshrpc.CommandRunStreamEvent_Error,
+						Error:     fmt.Sprintf("command error: %v", err),
+					},
+				}
+				return
+			}
+		}
+		rtn <- wshrpc.RespOrErrorUnion[wshrpc.CommandRunStreamEvent]{
+			Response: wshrpc.CommandRunStreamEvent{
+				EventType: wshrpc.CommandRunStreamEvent_Exit,
+				ExitCode:  &exitCode,
+			},
+		}
+	}()
+	return rtn
 }

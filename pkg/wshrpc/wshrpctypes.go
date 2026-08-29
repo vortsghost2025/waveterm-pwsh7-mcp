@@ -174,6 +174,8 @@ type WshRpcInterface interface {
 
 	// terminal
 	TermGetScrollbackLinesCommand(ctx context.Context, data CommandTermGetScrollbackLinesData) (*CommandTermGetScrollbackLinesRtnData, error)
+	TermInfoCommand(ctx context.Context, data TermInfoRequest) (*TermInfo, error)
+	CommandRunStreamCommand(ctx context.Context, req CommandRunStreamRequest) chan RespOrErrorUnion[CommandRunStreamEvent]
 
 	// file
 	WshRpcFileInterface
@@ -924,4 +926,38 @@ type CommandRemoteProcessListData struct {
 type CommandRemoteProcessSignalData struct {
 	Pid    int32  `json:"pid"`
 	Signal string `json:"signal"`
+}
+
+const (
+	CommandRunStreamEvent_Stdout = "stdout"
+	CommandRunStreamEvent_Stderr = "stderr"
+	CommandRunStreamEvent_Exit   = "exit"
+	CommandRunStreamEvent_Error  = "error"
+)
+
+type CommandRunStreamRequest struct {
+	BlockID     string   `json:"block_id"`
+	Command     string   `json:"command"`
+	Cwd         string   `json:"cwd,omitempty"`
+	Env         []string `json:"env,omitempty"`
+	Interactive bool     `json:"interactive,omitempty"`
+}
+
+type CommandRunStreamEvent struct {
+	EventType string `json:"eventtype"`
+	Data      string `json:"data,omitempty"`
+	ExitCode  *int   `json:"exit_code,omitempty"`
+	Error     string `json:"error,omitempty"`
+}
+
+type TermInfoRequest struct {
+	BlockID string `json:"block_id"`
+}
+
+type TermInfo struct {
+	BlockID string   `json:"block_id"`
+	Cwd     string   `json:"cwd,omitempty"`
+	Env     []string `json:"env,omitempty"`
+	Shell   string   `json:"shell,omitempty"`
+	Pid     int      `json:"pid,omitempty"`
 }
