@@ -20,4 +20,4 @@ require (
 	golang.org/x/sys v0.35.0 // indirect
 )
 
-replace github.com/wavetermdev/waveterm/tsunami => /Users/mike/work/waveterm/tsunami
+replace github.com/wavetermdev/waveterm/tsunami => ../..

@@ -9,4 +9,4 @@ require (
 	github.com/outrigdev/goid v0.3.0 // indirect
 )
 
-replace github.com/wavetermdev/waveterm/tsunami => /Users/mike/work/waveterm/tsunami
+replace github.com/wavetermdev/waveterm/tsunami => ../..
