@@ -7,135 +7,139 @@ on:
             - completed
 
 env:
-    GO_VERSION: "1.25.6"
     NODE_VERSION: 22
+    TESTDRIVERAI_VERSION: "7.11.59"
+    VITEST_VERSION: "4"
 
 permissions:
     contents: read
     statuses: write
 
 jobs:
-    context:
+    trust_gate:
+        name: Reject fork-produced workflow runs
         runs-on: ubuntu-22.04
         steps:
-            - name: Dump GitHub context
+            - name: Verify the triggering run originates from this repository
               env:
-                  GITHUB_CONTEXT: ${{ toJson(github) }}
-              run: echo "$GITHUB_CONTEXT"
-            - name: Dump job context
-              env:
-                  JOB_CONTEXT: ${{ toJson(job) }}
-              run: echo "$JOB_CONTEXT"
-            - name: Dump steps context
-              env:
-                  STEPS_CONTEXT: ${{ toJson(steps) }}
-              run: echo "$STEPS_CONTEXT"
-            - name: Dump runner context
-              env:
-                  RUNNER_CONTEXT: ${{ toJson(runner) }}
-              run: echo "$RUNNER_CONTEXT"
-            - name: Dump strategy context
-              env:
-                  STRATEGY_CONTEXT: ${{ toJson(strategy) }}
-              run: echo "$STRATEGY_CONTEXT"
-            - name: Dump matrix context
-              env:
-                  MATRIX_CONTEXT: ${{ toJson(matrix) }}
-              run: echo "$MATRIX_CONTEXT"
+                  HEAD_REPO: ${{ github.event.workflow_run.head_repository.full_name }}
+                  THIS_REPO: ${{ github.repository }}
+                  RUN_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+                  RUN_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+                  RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+              run: |
+                  echo "workflow_run head repository: $HEAD_REPO"
+                  echo "workflow_run head branch:     $RUN_HEAD_BRANCH"
+                  echo "workflow_run head sha:        $RUN_HEAD_SHA"
+                  echo "workflow_run conclusion:      $RUN_CONCLUSION"
+                  if [ -z "$HEAD_REPO" ] || [ "$HEAD_REPO" != "$THIS_REPO" ]; then
+                      echo "::error::Untrusted workflow_run origin '$HEAD_REPO'. This workflow mints TestDriver OIDC credentials and executes downloaded build artifacts, so it must only consume runs produced by this repository ('$THIS_REPO'); fork-produced code and artifacts are rejected before any authentication or execution."
+                      exit 1
+                  fi
+                  echo "Trust gate passed: triggering run originates from this repository."
+
     run_testdriver:
         name: Run TestDriver.ai
         runs-on: windows-latest
+        needs: trust_gate
         if: github.event.workflow_run.conclusion == 'success'
+        permissions:
+            actions: read # read artifacts of the triggering build run
+            contents: read
+            id-token: write # required for TestDriver OIDC authentication
+            statuses: write
         steps:
-            - uses: testdriverai/action@main
-              id: testdriver
+            - name: Check out workflow test sources from this repository
+              uses: actions/checkout@v6
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v6
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+
+            - name: Install TestDriver SDK and Vitest
+              shell: pwsh
+              run: |
+                  Set-StrictMode -Version Latest
+                  $ErrorActionPreference = "Stop"
+                  $packageJson = @{
+                      name         = "waveterm-testdriver-ci"
+                      private      = $true
+                      type         = "module"
+                      dependencies = @{
+                          testdriverai = $env:TESTDRIVERAI_VERSION
+                          vitest       = "^$($env:VITEST_VERSION).0.0"
+                      }
+                  } | ConvertTo-Json -Depth 4
+                  Set-Content -Path "testdriver/package.json" -Value $packageJson
+                  @'
+                  import { defineConfig } from "vitest/config";
+
+                  export default defineConfig({
+                      test: {
+                          include: ["*.test.mjs"],
+                          setupFiles: ["testdriverai/vitest/setup"],
+                          testTimeout: 600000,
+                          hookTimeout: 600000,
+                          pool: "forks",
+                          reporters: ["verbose"],
+                      },
+                  });
+                  '@ | Set-Content -Path "testdriver/vitest.config.mjs"
+                  npm install --prefix testdriver --no-audit --no-fund
+
+            - name: Download Wave installer artifact from the triggering run
+              shell: pwsh
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
+                  REPO: ${{ github.repository }}
+              run: |
+                  Set-StrictMode -Version Latest
+                  $ErrorActionPreference = "Stop"
+                  $headers = @{ Authorization = "Bearer $env:GH_TOKEN" }
+                  $artifacts = Invoke-RestMethod `
+                      -Uri "https://api.github.com/repos/$env:REPO/actions/runs/$env:UPSTREAM_RUN_ID/artifacts" `
+                      -Headers $headers
+                  $artifact = $artifacts.artifacts | Where-Object { $_.name -eq "windows-exe" } | Select-Object -First 1
+                  if (-not $artifact) {
+                      Write-Error "Artifact 'windows-exe' not found on workflow run $env:UPSTREAM_RUN_ID."
+                      exit 1
+                  }
+                  $zipPath = Join-Path $env:TEMP "windows-exe.zip"
+                  Invoke-WebRequest -Uri $artifact.archive_download_url -Headers $headers -OutFile $zipPath -MaximumRedirection 5
+                  $extractPath = Join-Path $env:TEMP "windows-exe"
+                  Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
+                  $installer = Get-ChildItem -Path $extractPath -Filter *.exe -Recurse | Select-Object -First 1
+                  if (-not $installer) {
+                      Write-Error "No .exe installer found inside the 'windows-exe' artifact."
+                      exit 1
+                  }
+                  Write-Host "Installer: $($installer.FullName) ($([math]::Round($installer.Length / 1MB, 1)) MB)"
+                  "WAVE_INSTALLER_PATH=$($installer.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+            - name: Publish installer at a one-shot URL for the test sandbox
+              shell: pwsh
+              run: |
+                  Set-StrictMode -Version Latest
+                  $ErrorActionPreference = "Stop"
+                  Write-Host "Uploading WAVE_INSTALLER_PATH to file.io (one-shot, deleted after first download)..."
+                  $upload = Invoke-RestMethod -Uri "https://file.io" -Method Post -Form @{ file = Get-Item $env:WAVE_INSTALLER_PATH }
+                  if (-not $upload.link) {
+                      Write-Error "Installer upload failed: $($upload | ConvertTo-Json -Compress)"
+                      exit 1
+                  }
+                  Write-Host "Installer published at a one-shot URL."
+                  "WAVETERM_INSTALLER_URL=$($upload.link)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+            - name: Authenticate to TestDriver
+              id: testdriver_auth
+              uses: testdriverai/action@dae708d6ddf79ce83a3735de225336dc03d4c6e8
+              with:
+                  api-key: ${{ secrets.TD_API_KEY }} # optional fallback if OIDC is not configured for this org
+
+            - name: Run onboarding test
+              working-directory: testdriver
               env:
                   FORCE_COLOR: "3"
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-              with:
-                  key: ${{ secrets.DASHCAM_API }}
-                  prerun: |
-                      $headers = @{
-                          Authorization = "token ${{ secrets.GITHUB_TOKEN }}"
-                      }
-
-                      $downloadFolder = "./download"
-                      $artifactFileName = "waveterm.exe"
-                      $artifactFilePath = "$downloadFolder/$artifactFileName"
-
-                      Write-Host "Starting the artifact download process..."
-
-                      # Create the download directory if it doesn't exist
-                      if (-not (Test-Path -Path $downloadFolder)) {
-                          Write-Host "Creating download folder..."
-                          mkdir $downloadFolder
-                      } else {
-                          Write-Host "Download folder already exists."
-                      }
-
-                      # Fetch the artifact upload URL
-                      Write-Host "Fetching the artifact upload URL..."
-                      $artifactUrl = (Invoke-RestMethod -Uri "https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}/artifacts" -Headers $headers).artifacts[0].archive_download_url
-
-                      if ($artifactUrl) {
-                          Write-Host "Artifact URL successfully fetched: $artifactUrl"
-                      } else {
-                          Write-Error "Failed to fetch the artifact URL."
-                          exit 1
-                      }
-
-                      # Download the artifact (zipped file)
-                      Write-Host "Starting artifact download..."
-                      $artifactZipPath = "$env:TEMP\artifact.zip"
-                      try {
-                          Invoke-WebRequest -Uri $artifactUrl `
-                              -Headers $headers `
-                              -OutFile $artifactZipPath `
-                              -MaximumRedirection 5
-
-                          Write-Host "Artifact downloaded successfully to $artifactZipPath"
-                      } catch {
-                          Write-Error "Error downloading artifact: $_"
-                          exit 1
-                      }
-
-                      # Unzip the artifact
-                      $artifactUnzipPath = "$env:TEMP\artifact"
-                      Write-Host "Unzipping the artifact to $artifactUnzipPath..."
-                      try {
-                          Expand-Archive -Path $artifactZipPath -DestinationPath $artifactUnzipPath -Force
-                          Write-Host "Artifact unzipped successfully to $artifactUnzipPath"
-                      } catch {
-                          Write-Error "Failed to unzip the artifact: $_"
-                          exit 1
-                      }
-
-                      # Find the installer or app executable
-                      $artifactInstallerPath = Get-ChildItem -Path $artifactUnzipPath -Filter *.exe -Recurse | Select-Object -First 1
-
-                      if ($artifactInstallerPath) {
-                          Write-Host "Executable file found: $($artifactInstallerPath.FullName)"
-                      } else {
-                          Write-Error "Executable file not found. Exiting."
-                          exit 1
-                      }
-
-                      # Run the installer and log the result
-                      Write-Host "Running the installer: $($artifactInstallerPath.FullName)..."
-                      try {
-                          Start-Process -FilePath $artifactInstallerPath.FullName -Wait
-                          Write-Host "Installer ran successfully."
-                      } catch {
-                          Write-Error "Failed to run the installer: $_"
-                          exit 1
-                      }
-
-                      # Optional: If the app executable is different from the installer, find and launch it
-                      $wavePath = Join-Path $env:USERPROFILE "AppData\Local\Programs\waveterm\Wave.exe"
-
-                      Write-Host "Launching the application: $($wavePath)"
-                      Start-Process -FilePath $wavePath
-                      Write-Host "Application launched."
-
-                  prompt: |
-                      1. /run testdriver/onboarding.yml
+              run: npx vitest run onboarding.test.mjs
