@@ -44,13 +44,22 @@ jobs:
         needs: trust_gate
         if: github.event.workflow_run.conclusion == 'success'
         permissions:
-            actions: read # read artifacts of the triggering build run
+            actions: read # lets the test resolve the triggering run's artifact download URL
             contents: read
             id-token: write # required for TestDriver OIDC authentication
             statuses: write
         steps:
-            - name: Check out workflow test sources from this repository
+            # SECURITY (workflow_run): test definitions are checked out from the
+            # trusted `main` branch, never from the triggering run's head SHA.
+            # The only thing taken from the triggering run is the built
+            # `windows-exe` artifact itself, and only after the trust gate has
+            # proven the run was produced by this same repository. Fork-
+            # controlled workflow files, test code, and scripts therefore never
+            # execute in this privileged (OIDC) context.
+            - name: Check out trusted test definitions from main
               uses: actions/checkout@v6
+              with:
+                  ref: main
 
             - name: Setup Node.js
               uses: actions/setup-node@v6
@@ -88,58 +97,25 @@ jobs:
                   '@ | Set-Content -Path "testdriver/vitest.config.mjs"
                   npm install --prefix testdriver --no-audit --no-fund
 
-            - name: Download Wave installer artifact from the triggering run
-              shell: pwsh
-              env:
-                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-                  UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
-                  REPO: ${{ github.repository }}
-              run: |
-                  Set-StrictMode -Version Latest
-                  $ErrorActionPreference = "Stop"
-                  $headers = @{ Authorization = "Bearer $env:GH_TOKEN" }
-                  $artifacts = Invoke-RestMethod `
-                      -Uri "https://api.github.com/repos/$env:REPO/actions/runs/$env:UPSTREAM_RUN_ID/artifacts" `
-                      -Headers $headers
-                  $artifact = $artifacts.artifacts | Where-Object { $_.name -eq "windows-exe" } | Select-Object -First 1
-                  if (-not $artifact) {
-                      Write-Error "Artifact 'windows-exe' not found on workflow run $env:UPSTREAM_RUN_ID."
-                      exit 1
-                  }
-                  $zipPath = Join-Path $env:TEMP "windows-exe.zip"
-                  Invoke-WebRequest -Uri $artifact.archive_download_url -Headers $headers -OutFile $zipPath -MaximumRedirection 5
-                  $extractPath = Join-Path $env:TEMP "windows-exe"
-                  Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
-                  $installer = Get-ChildItem -Path $extractPath -Filter *.exe -Recurse | Select-Object -First 1
-                  if (-not $installer) {
-                      Write-Error "No .exe installer found inside the 'windows-exe' artifact."
-                      exit 1
-                  }
-                  Write-Host "Installer: $($installer.FullName) ($([math]::Round($installer.Length / 1MB, 1)) MB)"
-                  "WAVE_INSTALLER_PATH=$($installer.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-
-            - name: Publish installer at a one-shot URL for the test sandbox
-              shell: pwsh
-              run: |
-                  Set-StrictMode -Version Latest
-                  $ErrorActionPreference = "Stop"
-                  Write-Host "Uploading WAVE_INSTALLER_PATH to file.io (one-shot, deleted after first download)..."
-                  $upload = Invoke-RestMethod -Uri "https://file.io" -Method Post -Form @{ file = Get-Item $env:WAVE_INSTALLER_PATH }
-                  if (-not $upload.link) {
-                      Write-Error "Installer upload failed: $($upload | ConvertTo-Json -Compress)"
-                      exit 1
-                  }
-                  Write-Host "Installer published at a one-shot URL."
-                  "WAVETERM_INSTALLER_URL=$($upload.link)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-
             - name: Authenticate to TestDriver
               id: testdriver_auth
               uses: testdriverai/action@dae708d6ddf79ce83a3735de225336dc03d4c6e8
               with:
-                  api-key: ${{ secrets.TD_API_KEY }} # optional fallback if OIDC is not configured for this org
+                  # Optional stored-key fallback used only if TestDriver OIDC is
+                  # not configured for this org. NOTE: this repository currently
+                  # has no TD_API_KEY repo secret, so this is empty and OIDC is
+                  # the only active path (secure default). The legacy workflow's
+                  # DASHCAM_API secret likewise does not exist in this repo.
+                  api-key: ${{ secrets.TD_API_KEY }}
 
+            # The test resolves the triggering run's windows-exe artifact on the
+            # runner (GH_TOKEN never leaves the runner) and hands the sandbox a
+            # short-lived GitHub-signed download URL. No third-party file host
+            # is involved in the artifact transport.
             - name: Run onboarding test
               working-directory: testdriver
               env:
                   FORCE_COLOR: "3"
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  WAVETERM_BUILD_RUN_ID: ${{ github.event.workflow_run.id }}
               run: npx vitest run onboarding.test.mjs
