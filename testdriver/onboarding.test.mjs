@@ -94,7 +94,7 @@ describe("Wave Terminal onboarding", () => {
             `$ProgressPreference = "SilentlyContinue"\n` +
             `$url = '${artifactUrl}'\n` +
             `$zipPath = Join-Path $env:TEMP "wave-installer.zip"\n` +
-            `Invoke-WebRequest -Uri $url -OutFile $zipPath\n` +
+            `Invoke-WebRequest -Uri $url -OutFile $zipPath -TimeoutSec 300\n` +
             `$dest = Join-Path $env:TEMP "wave-installer"\n` +
             `Expand-Archive -Path $zipPath -DestinationPath $dest -Force\n` +
             `$installer = Get-ChildItem -Path $dest -Filter *.exe -Recurse | Select-Object -First 1\n` +
