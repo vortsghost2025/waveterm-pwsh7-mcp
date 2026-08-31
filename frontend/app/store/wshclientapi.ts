@@ -102,6 +102,12 @@ export class RpcApiType {
         return client.wshRpcCall("checkgoversion", null, opts);
     }
 
+    // command "commandrunstream" [responsestream]
+	CommandRunStreamCommand(client: WshClient, data: CommandRunStreamRequest, opts?: RpcOpts): AsyncGenerator<CommandRunStreamEvent, void, boolean> {
+        if (this.mockClient) return this.mockClient.mockWshRpcStream(client, "commandrunstream", data, opts);
+        return client.wshRpcStream("commandrunstream", data, opts);
+    }
+
     // command "connconnect" [call]
     ConnConnectCommand(client: WshClient, data: ConnRequest, opts?: RpcOpts): Promise<void> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "connconnect", data, opts);
@@ -928,6 +934,12 @@ export class RpcApiType {
     TermGetScrollbackLinesCommand(client: WshClient, data: CommandTermGetScrollbackLinesData, opts?: RpcOpts): Promise<CommandTermGetScrollbackLinesRtnData> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "termgetscrollbacklines", data, opts);
         return client.wshRpcCall("termgetscrollbacklines", data, opts);
+    }
+
+    // command "terminfo" [call]
+    TermInfoCommand(client: WshClient, data: TermInfoRequest, opts?: RpcOpts): Promise<TermInfo> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "terminfo", data, opts);
+        return client.wshRpcCall("terminfo", data, opts);
     }
 
     // command "test" [call]
