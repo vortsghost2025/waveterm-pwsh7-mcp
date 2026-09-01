@@ -44,10 +44,13 @@ async function resolveArtifactUrl() {
         Accept: "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
     };
+    // Fail fast if the GitHub API hangs, instead of stalling the test until
+    // the vitest timeout.
+    const requestTimeout = AbortSignal.timeout(30000);
 
     const res = await fetch(
         `${GITHUB_API}/repos/${repo}/actions/runs/${runId}/artifacts`,
-        { headers: authHeaders }
+        { headers: authHeaders, signal: requestTimeout }
     );
     if (!res.ok) {
         throw new Error(
