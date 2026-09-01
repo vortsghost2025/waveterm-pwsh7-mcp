@@ -67,6 +67,12 @@ jobs:
                   node-version: ${{ env.NODE_VERSION }}
 
             - name: Install TestDriver SDK and Vitest
+              # Run from inside testdriver/ so npm resolves testdriver/package.json
+              # as the project. `npm install --prefix testdriver` from the repo
+              # root instead treats the ROOT package.json as the project and
+              # installs the whole Electron app's dependencies (and runs its
+              # postinstall scripts) into the prefix, which fails on the runner.
+              working-directory: testdriver
               shell: pwsh
               run: |
                   Set-StrictMode -Version Latest
@@ -80,7 +86,7 @@ jobs:
                           vitest       = "^$($env:VITEST_VERSION).0.0"
                       }
                   } | ConvertTo-Json -Depth 4
-                  Set-Content -Path "testdriver/package.json" -Value $packageJson
+                  Set-Content -Path "package.json" -Value $packageJson
                   @'
                   import { defineConfig } from "vitest/config";
 
@@ -94,8 +100,8 @@ jobs:
                           reporters: ["verbose"],
                       },
                   });
-                  '@ | Set-Content -Path "testdriver/vitest.config.mjs"
-                  npm install --prefix testdriver --no-audit --no-fund
+                  '@ | Set-Content -Path "vitest.config.mjs"
+                  npm install --no-audit --no-fund
 
             - name: Authenticate to TestDriver
               id: testdriver_auth
