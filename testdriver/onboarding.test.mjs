@@ -105,6 +105,14 @@ describe("Wave Terminal onboarding", () => {
             `Start-Process -FilePath $installer.FullName -Wait\n` +
             `$wave = Join-Path $env:USERPROFILE "AppData\\Local\\Programs\\waveterm\\Wave.exe"\n` +
             `Start-Process -FilePath $wave\n` +
+            `# Wait for the Electron process to appear (up to 60s), then give the\n` +
+            `# first window time to render before the script returns. Without this,\n` +
+            `# Start-Process returns immediately and the onboarding flow is not yet\n` +
+            `# on screen when the first element lookup runs.\n` +
+            `$deadline = (Get-Date).AddSeconds(60)\n` +
+            `while (-not (Get-Process -Name Wave -ErrorAction SilentlyContinue) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }\n` +
+            `if (-not (Get-Process -Name Wave -ErrorAction SilentlyContinue)) { throw "Wave process did not start within 60 seconds" }\n` +
+            `Start-Sleep -Seconds 15\n` +
             `Write-Output "Wave installed and launched"\n`;
 
         const output = await testdriver.exec("pwsh", provisioningScript, 600000);
