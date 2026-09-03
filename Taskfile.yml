@@ -267,6 +267,12 @@ tasks:
         requires:
             vars:
                 - ARCHS
+        vars:
+            # Strip debug symbols and DWARF tables from wavesrv. Cuts the
+            # binary roughly 30%, which also speeds up first-launch AV scans
+            # of the freshly-installed (unsigned) exe in CI sandboxes and on
+            # end-user machines. Symbol tables are not needed in production.
+            GO_LDFLAGS: -s -w
         cmd:
             cmd: CGO_ENABLED=1 GOARCH={{.GOARCH}} {{.GO_ENV_VARS}} go build -tags "osusergo,sqlite_omit_load_extension" -ldflags "{{.GO_LDFLAGS}} -X main.BuildTime=$({{.DATE}} +'%Y%m%d%H%M') -X main.WaveVersion={{.VERSION}}" -o dist/bin/wavesrv.{{if eq .GOARCH "amd64"}}x64{{else}}{{.GOARCH}}{{end}}{{exeExt}} cmd/server/main-server.go
             for:
