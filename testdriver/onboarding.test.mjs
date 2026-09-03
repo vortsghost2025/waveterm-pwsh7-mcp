@@ -129,9 +129,11 @@ describe("Wave Terminal onboarding", () => {
         );
         await continueButton.click();
 
-        // 2. click "Get Started"
+        // 2. click "Get Started". The dialog transition after the Continue
+        // click is also animated, so poll here too.
         const getStartedButton = await testdriver.find(
-            "Get Started button of the Wave Terminal onboarding flow"
+            "Get Started button of the Wave Terminal onboarding flow",
+            { timeout: 120000 }
         );
         await getStartedButton.click();
 
