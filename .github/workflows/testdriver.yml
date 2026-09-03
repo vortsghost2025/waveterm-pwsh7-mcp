@@ -50,16 +50,19 @@ jobs:
             statuses: write
         steps:
             # SECURITY (workflow_run): test definitions are checked out from the
-            # trusted `main` branch, never from the triggering run's head SHA.
-            # The only thing taken from the triggering run is the built
+            # repository's default branch, never from the triggering run's head
+            # SHA. The only thing taken from the triggering run is the built
             # `windows-exe` artifact itself, and only after the trust gate has
             # proven the run was produced by this same repository. Fork-
             # controlled workflow files, test code, and scripts therefore never
-            # execute in this privileged (OIDC) context.
-            - name: Check out trusted test definitions from main
+            # execute in this privileged (OIDC) context. (This fork's default
+            # branch is prefer-pwsh7-windows; the previous hard-coded `main`
+            # checkout tested a stale branch that lacked the current test
+            # definitions.)
+            - name: Check out trusted test definitions from the default branch
               uses: actions/checkout@v6
               with:
-                  ref: main
+                  ref: ${{ github.event.repository.default_branch }}
 
             - name: Setup Node.js
               uses: actions/setup-node@v6
