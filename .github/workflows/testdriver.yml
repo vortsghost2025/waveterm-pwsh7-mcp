@@ -108,7 +108,15 @@ jobs:
                       },
                   });
                   '@ | Set-Content -Path "vitest.config.mjs"
-                  npm install --no-audit --no-fund
+                  # The setup-node npm cache (keyed on the ROOT package-lock)
+                  # restored by the 20260824.214 runner image carries a
+                  # content index from a different dependency graph; npm
+                  # 10.9.8 deterministically crashes with "Cannot read
+                  # properties of null (reading 'edgesOut')" when arborist
+                  # reads it (3/3 fresh-VM attempts, runs 33815290907).
+                  # Install from a throwaway cache dir instead.
+                  New-Item -ItemType Directory -Force -Path (Join-Path $env:RUNNER_TEMP "td-npm-cache") | Out-Null
+                  npm install --no-audit --no-fund --cache (Join-Path $env:RUNNER_TEMP "td-npm-cache")
 
             - name: Authenticate to TestDriver
               id: testdriver_auth
