@@ -111,9 +111,13 @@ describe("Wave Terminal onboarding", () => {
         expect(output).toContain("Wave installed and launched");
 
         // Port of the legacy runbook (testdriver/onboarding.yml):
-        // 1. click "Continue"
+        // 1. click "Continue". Electron's first window can take tens of
+        // seconds to appear after Start-Process, so use the SDK's polling
+        // find (retries every 5s) with a generous timeout instead of a
+        // one-shot lookup.
         const continueButton = await testdriver.find(
-            "Continue button of the Wave Terminal onboarding flow"
+            "Continue button of the Wave Terminal onboarding flow",
+            { timeout: 120000 }
         );
         await continueButton.click();
 
