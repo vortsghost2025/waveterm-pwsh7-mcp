@@ -118,29 +118,70 @@ describe("Wave Terminal onboarding", () => {
         const output = await testdriver.exec("pwsh", provisioningScript, 600000);
         expect(output).toContain("Wave installed and launched");
 
-        // Port of the legacy runbook (testdriver/onboarding.yml):
-        // 1. click "Continue". Electron's first window can take tens of
-        // seconds to appear after Start-Process, so use the SDK's polling
-        // find (retries every 5s) with a generous timeout instead of a
-        // one-shot lookup.
-        const continueButton = await testdriver.find(
-            "Continue button of the Wave Terminal onboarding flow",
-            { timeout: 120000 }
-        );
-        await continueButton.click();
+        // On any failure below, dump the app's own log tail and process state
+        // from the sandbox into the test output. The onboarding window
+        // sometimes never paints on a fresh sandbox; waveapp.log shows
+        // whether Electron was still parked waiting for the wavesrv
+        // ESTART signal (no window path) or errored elsewhere, which
+        // turns every future flake into a self-diagnosing run.
+        const dumpEvidence = async (label) => {
+            try {
+                const evidence = await testdriver.exec(
+                    "pwsh",
+                    `$log = Join-Path $env:LOCALAPPDATA "waveterm\\waveapp.log"\n` +
+                    `Write-Output "=== evidence: ${label} ==="\n` +
+                    `Write-Output "--- processes ---"\n` +
+                    `Get-Process -Name Wave,wavesrv -ErrorAction SilentlyContinue | Select-Object Name,Id | Format-Table | Out-String\n` +
+                    `Write-Output "--- waveapp.log tail ---"\n` +
+                    `if (Test-Path $log) { Get-Content $log -Tail 40 } else { Write-Output "(waveapp.log not found)" }\n`,
+                    60000
+                );
+                console.log(evidence);
+            } catch (e) {
+                console.log(`evidence dump failed (${label}):`, e?.message ?? e);
+            }
+        };
 
-        // 2. click "Get Started". The dialog transition after the Continue
-        // click is also animated, so poll here too.
-        const getStartedButton = await testdriver.find(
-            "Get Started button of the Wave Terminal onboarding flow",
-            { timeout: 120000 }
-        );
-        await getStartedButton.click();
+        try {
+            // Port of the legacy runbook (testdriver/onboarding.yml), walking
+            // the real wizard flow. Electron's first window can take tens of
+            // seconds to appear after Start-Process, so use the SDK's polling
+            // find (retries every 5s) with a generous timeout.
+            const continueButton = await testdriver.find(
+                "Continue button of the Wave Terminal onboarding flow",
+                { timeout: 120000 }
+            );
+            await continueButton.click();
 
-        // 3. assert the CPU usage graph is displayed
-        const result = await testdriver.assert(
-            "the cpu usage graph is being displayed"
-        );
-        expect(result).toBeTruthy();
+            // After Continue, the wizard shows 4 feature steps. The button on
+            // steps 1-3 is labeled "Next" (only the final step's button reads
+            // "Get Started"), so click through the wizard with that
+            // description; the SDK's AI locator matches the primary action
+            // button of the current step.
+            for (let step = 1; step <= 3; step++) {
+                const nextButton = await testdriver.find(
+                    "Next button of the Wave Terminal onboarding wizard",
+                    { timeout: 60000 }
+                );
+                await nextButton.click();
+            }
+
+            // Final step: the button reads "Get Started" and finishes the
+            // wizard, revealing the main terminal with the CPU usage graph.
+            const getStartedButton = await testdriver.find(
+                "Get Started button of the Wave Terminal onboarding flow",
+                { timeout: 60000 }
+            );
+            await getStartedButton.click();
+
+            // assert the CPU usage graph is displayed
+            const result = await testdriver.assert(
+                "the cpu usage graph is being displayed"
+            );
+            expect(result).toBeTruthy();
+        } catch (e) {
+            await dumpEvidence("onboarding failure");
+            throw e;
+        }
     });
 });
