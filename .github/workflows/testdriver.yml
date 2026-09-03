@@ -101,6 +101,10 @@ jobs:
                           hookTimeout: 600000,
                           pool: "forks",
                           reporters: ["verbose"],
+                          // First-launch rendering in the Windows sandbox varies
+                          // run to run (Wave sometimes never paints its window);
+                          // retry a failed test once with a fresh sandbox.
+                          retry: 1,
                       },
                   });
                   '@ | Set-Content -Path "vitest.config.mjs"
