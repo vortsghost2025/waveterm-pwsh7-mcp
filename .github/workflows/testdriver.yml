@@ -108,15 +108,17 @@ jobs:
                       },
                   });
                   '@ | Set-Content -Path "vitest.config.mjs"
-                  # The setup-node npm cache (keyed on the ROOT package-lock)
-                  # restored by the 20260824.214 runner image carries a
-                  # content index from a different dependency graph; npm
-                  # 10.9.8 deterministically crashes with "Cannot read
-                  # properties of null (reading 'edgesOut')" when arborist
-                  # reads it (3/3 fresh-VM attempts, runs 33815290907).
-                  # Install from a throwaway cache dir instead.
+                  # The 20260824.214 runner image ships npm 10.9.8, whose
+                  # arborist crashes with "Cannot read properties of null
+                  # (reading 'edgesOut')" when building the tree for the
+                  # current vitest 4.1.x peer graph (deterministic on every
+                  # fresh VM; run 33820333777). --legacy-peer-deps skips the
+                  # peer-dep tree walk that hits the bug; the resolved
+                  # package set is identical (754 packages either way,
+                  # verified locally) and the SDK's vitest setup resolves
+                  # normally.
                   New-Item -ItemType Directory -Force -Path (Join-Path $env:RUNNER_TEMP "td-npm-cache") | Out-Null
-                  npm install --no-audit --no-fund --cache (Join-Path $env:RUNNER_TEMP "td-npm-cache")
+                  npm install --no-audit --no-fund --legacy-peer-deps --cache (Join-Path $env:RUNNER_TEMP "td-npm-cache")
 
             - name: Authenticate to TestDriver
               id: testdriver_auth
