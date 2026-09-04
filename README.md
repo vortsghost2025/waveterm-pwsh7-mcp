@@ -42,7 +42,7 @@ The broader direction of the fork is autonomous and human-supervised agent coord
 - External CLI-agent orchestration is being developed so Wave can spawn or route work to CLI agents rather than requiring manual copy/paste handoffs.
 - WSH-based messaging plus inbox/outbox-style communication is being developed for asynchronous agent-to-agent coordination, so workers can exchange work and results without the user acting as the message bus.
 
-Some orchestration/inbox-outbox pieces remain active development rather than part of the clean review branch; they are called out separately here so published features are not confused with work still being integrated.
+**Status: in active integration, not yet on the clean review branch.** The mesh pieces in flight are: multi-terminal CLI-agent spawn from the shell, `wsh` idle nudges between agents, the outbox/inbox handoff protocol, and an OpenCode ↔ Wave bridge (external supervisor that can monitor sessions, run commands outside Electron, and relaunch a session). They exist as working branches, not merged features — see [`docs/AGENT-MESH.md`](docs/AGENT-MESH.md) for the current state of each piece. Until they land, the shipped surface is exactly what's listed under [Agent-operable terminal control](#agent-operable-terminal-control) above.
 
 ### Windows and PowerShell 7
 
@@ -74,6 +74,16 @@ The modification history intentionally includes evidence of how changes were val
 
 The point is to make the implementation trail inspectable rather than present agent behavior as a black box.
 
+### Reliability and CI
+
+The default branch carries a self-verifying CI chain on top of the feature work:
+
+- **AI-driven E2E pipeline** — every `TestDriver.ai Build` completion triggers a `TestDriver.ai Run` that provisions a fresh Windows VM, installs the built artifact, and has an AI tester walk the real onboarding UI by sight (Continue → the 4-step feature wizard → Get Started → CPU-graph assertion). See [`testdriver/onboarding.test.mjs`](testdriver/onboarding.test.mjs).
+- **Self-diagnosing failures** — any wizard-walk failure automatically dumps the sandbox's Wave/wavesrv process state and the last 40 lines of `waveapp.log` into the test output, so a flake names its own cause instead of leaving a red X.
+- **Hardened workflow trust model** — the `workflow_run` gate checks out test definitions only from the repository's default branch and only after verifying the triggering run originated in this repository; fork-controlled test code never executes in the privileged (OIDC) context.
+- **Lean production binaries** — `wavesrv` builds with stripped symbols (`-s -w`), cutting the binary ~30% and speeding first-launch AV scans of the unsigned exe.
+- **Runner-environment workarounds documented in-place** — e.g. the npm 10 arborist crash workaround ([PR #37](https://github.com/vortsghost2025/waveterm-pwsh7-mcp/pull/37)), so the next image regression is a five-minute fix instead of a debugging session.
+
 ## Current clean feature review
 
 [`PR #22 — feat(wshrpc): add stream command execution and terminal info`](https://github.com/vortsghost2025/waveterm-pwsh7-mcp/pull/22) is a deliberately isolated review of the streamed-command/terminal-info/input work.
@@ -87,6 +97,8 @@ The point is to make the implementation trail inspectable rather than present ag
 - Windows PowerShell 7 runtime verification
 
 It was rebuilt on a clean `main` base after the original development branch accumulated unsuitable ancestry for review. A full-suite `pkg/tsgen` failure was separately reproduced on the pristine base and documented as pre-existing instead of being misattributed to the feature.
+
+The recent reliability arc — PRs [#30](https://github.com/vortsghost2025/waveterm-pwsh7-mcp/pull/30)–[#37](https://github.com/vortsghost2025/waveterm-pwsh7-mcp/pull/37) — took the E2E chain from never-green to a working, self-diagnosing pipeline: launch-wait and SDK-native polling, a fixed trusted-checkout bug (tests were silently running from a stale branch), the real 4-step wizard walk, one-retry sandbox allowance, stripped `wavesrv` symbols, evidence dumps on failure, and the npm 10 runner workaround. See [Reliability and CI](#reliability-and-ci) above.
 
 The broader experimental history remains visible in the repository so the progression from upstream Wave to this agent-operable fork can be inspected directly.
 
@@ -132,7 +144,8 @@ Wave AI is your context-aware terminal assistant with access to your workspace:
 - **BYOK Support**: Bring your own API keys for OpenAI, Claude, Gemini, Azure, and other providers
 - **Local Models**: Run local models with Ollama, LM Studio, and other OpenAI-compatible providers
 - **Free Beta**: Included AI credits while we refine the experience
-- **Coming Soon**: Command execution (with approval)
+- **Coming Soon** (upstream): Command execution (with approval)
+- **In this fork**: Command execution paths are already implemented — see [Agent-operable terminal control](#agent-operable-terminal-control) above. Upstream's status line does not reflect this fork.
 
 Learn more in our [Wave AI documentation](https://docs.waveterm.dev/waveai) and [Wave AI Modes documentation](https://docs.waveterm.dev/waveai-modes).
 
