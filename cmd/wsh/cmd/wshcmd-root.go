@@ -53,19 +53,16 @@ func (w *WrappedWriter) Write(p []byte) (n int, err error) {
 	if count == 0 {
 		return w.dest.Write(p)
 	}
-	// Build the CRLF-rewritten output incrementally instead of computing
-	// `len(p)+count` as an allocation size: CodeQL go/allocation-size-overflow
-	// flags size expressions that could overflow int. Capacity is pinned to
-	// len(p) (a size that trivially fits, since p itself already exists) and
-	// append grows the buffer as needed, so no allocation size is ever
-	// computed from a sum. Allocating len(p) (not len(p)+count) also makes
-	// the intended capacity obvious: it is the floor for the output length.
-	buf := make([]byte, 0, len(p))
+	buf := make([]byte, len(p)+count) // Each '\n' adds one extra byte for '\r'
+	writeIdx := 0
 	for _, b := range p {
 		if b == '\n' {
-			buf = append(buf, '\r', '\n')
+			buf[writeIdx] = '\r'
+			buf[writeIdx+1] = '\n'
+			writeIdx += 2
 		} else {
-			buf = append(buf, b)
+			buf[writeIdx] = b
+			writeIdx++
 		}
 	}
 	return w.dest.Write(buf)
@@ -117,6 +114,21 @@ func activityWrap(activityStr string, origRunE RunEFnType) RunEFnType {
 
 func resolveBlockArg() (*waveobj.ORef, error) {
 	oref := blockArg
+	if oref == "" {
+		oref = "this"
+	}
+	fullORef, err := resolveSimpleId(oref)
+	if err != nil {
+		return nil, fmt.Errorf("resolving blockid: %w", err)
+	}
+	return fullORef, nil
+}
+
+func resolveBlockArgWithOverride(override string) (*waveobj.ORef, error) {
+	oref := override
+	if oref == "" {
+		oref = blockArg
+	}
 	if oref == "" {
 		oref = "this"
 	}
