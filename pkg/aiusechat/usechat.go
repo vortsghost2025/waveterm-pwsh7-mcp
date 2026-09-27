@@ -593,6 +593,7 @@ func RunAIChat(ctx context.Context, sseHandler *sse.SSEHandlerCh, backend UseCha
 			// Check if there's an active delegation for this chat
 			// If so, don't continue the loop - let the delegation monitor resume later
 			if GetDelegationStore().HasActiveDelegation(chatOpts.ChatId) {
+				_ = sseHandler.AiMsgFinish("tool_calls", nil)
 				break
 			}
 
